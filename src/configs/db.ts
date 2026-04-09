@@ -1,19 +1,19 @@
-import mongoose from 'mongoose';
-import dotenv from 'dotenv';
+import mongoose from 'mongoose'
+import dotenv from 'dotenv'
 
-dotenv.config();
+dotenv.config()
 
 export const connectDB = async () => {
   try {
-    const dbUri = process.env.DB_URI;
+    const dbUri = process.env.DB_URI
     if (!dbUri) {
-      throw new Error('La variable de entorno DB_URI no está definida.');
+      throw new Error('La variable de entorno DB_URI no está definida.')
     }
-    
-    const conn = await mongoose.connect(dbUri);
-    console.log(`🟢 Base de Datos MongoDB Conectada: ${conn.connection.name}`);
+
+    const conn = await mongoose.connect(dbUri)
+    console.log(`🟢 Base de Datos MongoDB Conectada: ${conn.connection.name}`)
   } catch (error) {
-    console.error(`🔴 Error conectando a MongoDB: ${error}`);
-    process.exit(1); // Detiene el servidor si no hay base de datos
+    console.error(`🔴 Error conectando a MongoDB: ${error}`)
+    process.exit(1) // Detiene el servidor si no hay base de datos
   }
-};
+}
