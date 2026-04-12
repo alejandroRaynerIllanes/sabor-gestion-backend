@@ -5,9 +5,9 @@ dotenv.config()
 
 export const connectDB = async () => {
   try {
-    const dbUri = process.env.DB_URI
+    const dbUri = process.env.MONGO_URI
     if (!dbUri) {
-      throw new Error('La variable de entorno DB_URI no está definida.')
+      throw new Error('La variable de entorno MONGO_URI no está definida.')
     }
 
     const conn = await mongoose.connect(dbUri)
