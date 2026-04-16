@@ -13,10 +13,18 @@ export const crearPlato = async (req: Request, res: Response) => {
 
 export const obtenerPlatos = async (req: Request, res: Response) => {
   try {
-    // El populate trae la información de la categoría ligada a este plato
-    const platos = await Plato.find().populate('categoria', 'nombre')
-    res.status(200).json(platos)
+    const { category } = req.query; // Extraemos el id de la categoría de la URL
+    let filtro = {};
+
+    // Si el usuario mandó ?category=ID, lo añadimos al filtro de búsqueda
+    if (category) {
+      filtro = { categoria: category };
+    }
+
+    const platos = await Plato.find(filtro).populate('categoria', 'nombre');
+    
+    res.status(200).json(platos);
   } catch (error) {
-    res.status(500).json({ mensaje: 'Error al obtener los platos', error })
+    res.status(500).json({ mensaje: 'Error al obtener los platos', error });
   }
-}
+};

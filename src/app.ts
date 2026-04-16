@@ -1,9 +1,8 @@
-// src/app.ts
 import express, { Application, Request, Response } from 'express'
 import cors from 'cors'
 import morgan from 'morgan';
 
-// 1. Importamos las rutas que acabamos de crear
+// 1. Importamos las rutas (Agregamos pagoRoutes)
 import authRoutes from './routes/auth.routes'
 import usuarioRoutes from './routes/usuario.routes'
 import categoriaRoutes from './routes/categoria.routes'
@@ -11,15 +10,16 @@ import mesaRoutes from './routes/mesa.routes'
 import platoRoutes from './routes/plato.routes'
 import reservaRoutes from './routes/reserva.routes'
 import pedidoRoutes from './routes/pedido.routes'
+import pagoRoutes from './routes/pago.routes' // <--- Nueva importación
 
 const app: Application = express()
 
 // Middlewares globales
 app.use(morgan('dev'));
 app.use(cors())
-app.use(express.json()) // Permite recibir JSON en los POST/PUT
+app.use(express.json()) 
 
-// Ruta de prueba para verificar que la API responde
+// Ruta de prueba
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'success',
@@ -35,4 +35,6 @@ app.use('/api/mesas', mesaRoutes)
 app.use('/api/platos', platoRoutes)
 app.use('/api/reservas', reservaRoutes)
 app.use('/api/pedidos', pedidoRoutes)
+app.use('/api/pago', pagoRoutes) // <--- Nueva ruta registrada
+
 export default app
