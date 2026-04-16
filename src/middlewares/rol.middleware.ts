@@ -1,3 +1,4 @@
+//src/middlewares/rol.middleware.ts
 import { Response, NextFunction } from 'express';
 import { CustomRequest } from './auth.middleware';
 

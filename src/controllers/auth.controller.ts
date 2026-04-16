@@ -1,3 +1,4 @@
+//src/controllers/auth.controller.ts
 import { Request, Response } from 'express';
 import Usuario from '../models/Usuario';
 import bcrypt from 'bcryptjs';
