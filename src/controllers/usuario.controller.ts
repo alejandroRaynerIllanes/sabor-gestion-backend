@@ -1,7 +1,5 @@
 import { Request, Response } from 'express'
 import Usuario from '../models/Usuario'
-import bcrypt from 'bcryptjs'
-import mongoose from 'mongoose'
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {
@@ -25,22 +23,18 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
       return res.status(400).json({ mensaje: 'El correo electrónico ya está registrado' })
     }
 
-    // 2. Encriptar la contraseña antes de guardarla
-    const salt = await bcrypt.genSalt(10)
-    const passwordHasheada = await bcrypt.hash(password, salt)
-
-    // 3. Crear la instancia del nuevo usuario
+    // 2. Crear la instancia del nuevo usuario. El hash ocurre en el pre-save del modelo.
     const nuevoUsuario = new Usuario({
       nombre,
       email,
-      password: passwordHasheada,
+      password,
       rol
     })
 
-    // 4. Guardar en MongoDB
+    // 3. Guardar en MongoDB
     await nuevoUsuario.save()
 
-    // 5. Responder al frontend confirmando la creación (sin enviar el password de vuelta)
+    // 4. Responder al frontend confirmando la creación (sin enviar el password de vuelta)
     res.status(201).json({
       mensaje: 'Usuario creado exitosamente',
       usuario: {
@@ -81,19 +75,19 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
       }
     }
 
-    // Preparar los datos a actualizar
-    const datosActualizados: any = { nombre, email, rol }
+    usuario.nombre = nombre
+    usuario.email = email
+    usuario.rol = rol
 
-    // TRUCO: Solo actualizamos la contraseña si el frontend nos envió una nueva
+    // Solo actualizamos la contraseña si el frontend nos envió una nueva.
+    // El pre-save del modelo se encargará de encriptarla.
     if (password && password.trim() !== '') {
-      const salt = await bcrypt.genSalt(10)
-      datosActualizados.password = await bcrypt.hash(password, salt)
+      usuario.password = password
     }
 
-    // Guardar cambios y devolver el usuario nuevo (new: true)
-    const usuarioActualizado = await Usuario.findByIdAndUpdate(id, datosActualizados, {
-      new: true
-    }).select('-password')
+    await usuario.save()
+
+    const usuarioActualizado = await Usuario.findById(id).select('-password')
 
     res.status(200).json({ mensaje: 'Usuario actualizado', usuario: usuarioActualizado })
   } catch (error) {
