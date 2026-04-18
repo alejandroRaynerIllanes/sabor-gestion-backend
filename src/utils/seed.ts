@@ -1,11 +1,12 @@
 import mongoose from 'mongoose'
 import dotenv from 'dotenv'
+import bcrypt from 'bcryptjs'
 
 dotenv.config()
 
 const seed = async () => {
   try {
-    await mongoose.connect(process.env.DB_URI!)
+    await mongoose.connect(process.env.MONGO_URI!)
     console.log('🟢 Conectado a Atlas para seeding...')
 
     const db = mongoose.connection.db!
@@ -55,12 +56,12 @@ const seed = async () => {
     // ── Usuario Administrador ────────────────────────────────
     const usuarios = db.collection('usuarios')
     await usuarios.deleteMany({ email: 'admin@sabor.com' })
+    const passwordHasheada = await bcrypt.hash('12345678', 10)
     await usuarios.insertOne({
       nombre: 'Administrador',
       email: 'admin@sabor.com',
-      password: '12345678', // ⚠️ en Sprint real va hasheado con bcrypt
+      password: passwordHasheada,
       rol: 'Administrador',
-      activo: true,
       createdAt: new Date(),
       updatedAt: new Date()
     })
