@@ -41,7 +41,8 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
         id: nuevoUsuario._id,
         nombre: nuevoUsuario.nombre,
         email: nuevoUsuario.email,
-        rol: nuevoUsuario.rol
+        rol: nuevoUsuario.rol,
+        activo: nuevoUsuario.activo
       }
     })
   } catch (error) {
@@ -98,10 +99,27 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
 
 // 4. Cambiar Estado (El Switch Activo/Inactivo)
 export const cambiarEstadoUsuario = async (req: Request, res: Response): Promise<any> => {
-  return res.status(501).json({
-    mensaje:
-      'La desactivación de usuarios requiere el campo estado y no forma parte de este esquema base.'
-  })
+  try {
+    const { id } = req.params
+
+    const usuarioActualizado = await Usuario.findByIdAndUpdate(
+      id,
+      { activo: false },
+      { new: true }
+    ).select('-password')
+
+    if (!usuarioActualizado) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' })
+    }
+
+    res.status(200).json({
+      mensaje: 'Usuario desactivado correctamente',
+      usuario: usuarioActualizado
+    })
+  } catch (error) {
+    console.error('Error al desactivar usuario:', error)
+    res.status(500).json({ mensaje: 'Error al desactivar el usuario' })
+  }
 }
 
 // 5. Eliminar Usuario Físicamente (El ícono de papelera)

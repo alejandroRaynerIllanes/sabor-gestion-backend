@@ -7,6 +7,7 @@ export interface IUsuario extends Document {
   email: string
   password: string
   rol: string
+  activo: boolean
 }
 
 const UsuarioSchema = new Schema(
@@ -18,7 +19,8 @@ const UsuarioSchema = new Schema(
       type: String,
       enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero'],
       required: true
-    }
+    },
+    activo: { type: Boolean, default: true }
   },
   {
     timestamps: true,

@@ -16,6 +16,11 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
       return res.status(404).json({ mensaje: 'Usuario no encontrado en el sistema' })
     }
 
+    if (!usuarioEncontrado.activo) {
+      console.log(` [LOGIN] Falló: Usuario desactivado.`)
+      return res.status(403).json({ mensaje: 'La cuenta está desactivada.' })
+    }
+
     // 2. Comparar la contraseña que ingresó con la encriptada en la base de datos
     const passwordValida = await bcrypt.compare(password, usuarioEncontrado.password)
     if (!passwordValida) {
