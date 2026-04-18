@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import Pedido from '../models/Pedido'
-import Mesa from '../models/Mesa';
+import Mesa from '../models/Mesa'
 
 export const crearPedido = async (req: Request, res: Response) => {
   try {
@@ -22,31 +22,29 @@ export const obtenerPedidos = async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al obtener los pedidos', error })
   }
-  
 }
 export const cancelarPedido = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params
 
-    const pedido = await Pedido.findById(id);
+    const pedido = await Pedido.findById(id)
 
     if (!pedido) {
-      return res.status(404).json({ mensaje: 'Pedido no encontrado' });
+      return res.status(404).json({ mensaje: 'Pedido no encontrado' })
     }
 
-    pedido.estado = 'CANCELADO';
-    await pedido.save();
+    pedido.estado = 'CANCELADO'
+    await pedido.save()
 
     if (pedido.mesa) {
-      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' }); 
+      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' })
     }
 
-    res.status(200).json({ 
-      mensaje: 'Pedido anulado y mesa liberada correctamente', 
-      pedido 
-    });
-
+    res.status(200).json({
+      mensaje: 'Pedido anulado y mesa liberada correctamente',
+      pedido
+    })
   } catch (error) {
-    res.status(500).json({ mensaje: 'Error al procesar la cancelación', error });
+    res.status(500).json({ mensaje: 'Error al procesar la cancelación', error })
   }
-};
+}
