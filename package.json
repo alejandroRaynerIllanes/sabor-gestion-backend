@@ -20,8 +20,7 @@
     "mongodb": "^7.1.1",
     "mongoose": "^9.3.1",
     "morgan": "^1.10.1",
-    "multer": "^2.1.1",
-    "multer-storage-cloudinary": "^2.2.1"
+    "multer": "^2.1.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
