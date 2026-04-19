@@ -1,13 +1,11 @@
-//src/server.ts
-import app from './app'
-import { connectDB } from './configs/db'
+import app from './app.js'
+import { connectDB } from './configs/db.js'
 import dotenv from 'dotenv'
 
 dotenv.config()
 
 const PORT = process.env.PORT || 3000
 
-// Inicializar la base de datos y luego arrancar el servidor
 connectDB().then(() => {
   app.listen(PORT, () => {
     console.log(`🚀 Servidor ejecutándose en http://localhost:3000`)

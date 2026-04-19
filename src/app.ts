@@ -2,7 +2,7 @@ import express, { Application, Request, Response } from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
 
-// 1. Importamos las rutas (Agregamos pagoRoutes)
+// 1. Importamos las rutas de la actualización (Equipo)
 import authRoutes from './routes/auth.routes'
 import usuarioRoutes from './routes/usuario.routes'
 import categoriaRoutes from './routes/categoria.routes'
@@ -19,15 +19,10 @@ app.use(morgan('dev'))
 app.use(cors())
 app.use(express.json())
 
-// Ruta de prueba
-app.get('/api/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'API de Sabor & Gestión funcionando correctamente 🚀'
-  })
-})
+// Rutas de tus cambios
+app.use('/api/upload', uploadRouter)
 
-// 2. Conectamos nuestras rutas oficiales
+// 2. Conectamos las rutas oficiales de la actualización
 app.use('/api/auth', authRoutes)
 app.use('/api/users', usuarioRoutes)
 app.use('/api/usuarios', usuarioRoutes)

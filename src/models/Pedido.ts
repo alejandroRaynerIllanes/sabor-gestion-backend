@@ -43,8 +43,8 @@ const PedidoSchema = new Schema(
     mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: false },
     usuario: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
 
-    detalles: [DetallePedidoSchema],// ¡Aquí incrustamos los detalles directamente!
-    qrUrl: { type: String, required: false },
+    detalles: [DetallePedidoSchema], // ¡Aquí incrustamos los detalles directamente!
+    qrUrl: { type: String, required: false }
   },
   {
     timestamps: true,

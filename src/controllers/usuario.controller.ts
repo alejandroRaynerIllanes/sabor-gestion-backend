@@ -64,6 +64,11 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     if (!usuario) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' })
     }
+    // Buscar al usuario por ID
+    let usuario = await Usuario.findById(id)
+    if (!usuario) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' })
+    }
 
     if (email !== usuario.email) {
       const usuarioExistente = await Usuario.findOne({
