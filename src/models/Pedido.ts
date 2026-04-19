@@ -28,6 +28,7 @@ export interface IPedido extends Document {
   mesa?: mongoose.Types.ObjectId // Opcional (porque un Delivery no tiene mesa)
   usuario: mongoose.Types.ObjectId // El mesero o cajero que lo creó
   detalles: IDetallePedido[] // Array de detalles
+  qrUrl?: string
 }
 
 const PedidoSchema = new Schema(
@@ -42,7 +43,8 @@ const PedidoSchema = new Schema(
     mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: false },
     usuario: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
 
-    detalles: [DetallePedidoSchema] // ¡Aquí incrustamos los detalles directamente!
+    detalles: [DetallePedidoSchema], // ¡Aquí incrustamos los detalles directamente!
+    qrUrl: { type: String, required: false }
   },
   {
     timestamps: true,
