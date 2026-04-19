@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import Mesa from '../models/Mesa'
+import { getIO } from '../socket/socket';
 
 export const crearMesa = async (req: Request, res: Response) => {
   try {
@@ -37,17 +38,14 @@ export const obtenerMesas = async (req: Request, res: Response) => {
 export const actualizarEstadoMesa = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { estado } = req.body; // El cliente manda el nuevo estado: 'Libre', 'Ocupada', etc.
+    const { estado } = req.body;
 
-    const mesaActualizada = await Mesa.findByIdAndUpdate(
-      id,
-      { estado },
-      { new: true }
-    );
+    const mesaActualizada = await Mesa.findByIdAndUpdate(id, { estado }, { new: true });
 
-    if (!mesaActualizada) {
-      return res.status(404).json({ mensaje: 'Mesa no encontrada' });
-    }
+    if (!mesaActualizada) return res.status(404).json({ mensaje: 'Mesa no encontrada' });
+
+    // EMITIR EVENTO: "mesa_actualizada"
+    getIO().emit('mesa_actualizada', mesaActualizada);
 
     res.status(200).json(mesaActualizada);
   } catch (error) {
