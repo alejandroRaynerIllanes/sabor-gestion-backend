@@ -1,5 +1,6 @@
-import { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
+//src/middlewares/auth.middleware.ts
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 
 // Extendemos la interfaz Request de Express para que acepte nuestro usuario
 export interface CustomRequest extends Request {
