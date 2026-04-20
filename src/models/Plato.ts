@@ -1,3 +1,4 @@
+//src/models/Plato.ts
 import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IPlato extends Document {
