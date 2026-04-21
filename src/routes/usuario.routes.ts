@@ -1,8 +1,8 @@
 //src/routes/usuario.routes.ts
-import { Router } from 'express';
-import { obtenerUsuarios, crearUsuario } from '../controllers/usuario.controller';
-import { verificarToken } from '../middlewares/auth.middleware';
-import { soloAdmins } from '../middlewares/rol.middleware';
+import { Router } from 'express'
+import { obtenerUsuarios, crearUsuario } from '../controllers/usuario.controller'
+import { verificarToken } from '../middlewares/auth.middleware'
+import { soloAdmins } from '../middlewares/rol.middleware'
 
 const router = Router()
 

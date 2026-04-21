@@ -1,8 +1,8 @@
 //src/controllers/usuario.controller.ts
-import { Request, Response } from 'express';
-import Usuario from '../models/Usuario';
-import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
+import { Request, Response } from 'express'
+import Usuario from '../models/Usuario'
+import bcrypt from 'bcryptjs'
+import mongoose from 'mongoose'
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {

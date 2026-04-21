@@ -1,3 +1,4 @@
+//src/models/Categoria.ts
 import mongoose, { Schema, Document } from 'mongoose'
 
 export interface ICategoria extends Document {
