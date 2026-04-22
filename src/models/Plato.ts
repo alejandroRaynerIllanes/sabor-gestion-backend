@@ -1,3 +1,4 @@
+//src/models/Plato.ts
 import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IPlato extends Document {
@@ -5,8 +6,9 @@ export interface IPlato extends Document {
   descripcion: string
   precio: number
   imagenUrl: string
+  imagenPublicId: string // ← nuevo: para eliminar de Cloudinary
   disponible: boolean
-  categoria: mongoose.Types.ObjectId // Relación (1 a muchos) con Categoria
+  categoria: mongoose.Types.ObjectId
 }
 
 const PlatoSchema = new Schema(
@@ -15,6 +17,7 @@ const PlatoSchema = new Schema(
     descripcion: { type: String, required: true },
     precio: { type: Number, required: true, min: 0 },
     imagenUrl: { type: String, default: '' },
+    imagenPublicId: { type: String, default: '' }, // ← nuevo
     disponible: { type: Boolean, default: true },
     categoria: { type: Schema.Types.ObjectId, ref: 'Categoria', required: true }
   },

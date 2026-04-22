@@ -1,6 +1,5 @@
-//src/server.ts
-import app from './app'
-import { connectDB } from './configs/db'
+import app from './app.js'
+import { connectDB } from './configs/db.js'
 import dotenv from 'dotenv'
 import { createServer } from 'http' // <--- NUEVO
 import { initSocket } from './socket/socket' // <--- NUEVO
@@ -13,7 +12,6 @@ const httpServer = createServer(app) // Creamos el servidor HTTP con Express
 // Inicializamos el Socket
 initSocket(httpServer)
 
-// Inicializar la base de datos y luego arrancar el servidor
 connectDB().then(() => {
   httpServer.listen(PORT, () => {
     console.log(`🚀 Servidor ejecutándose en http://localhost:3000`)
