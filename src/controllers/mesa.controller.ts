@@ -37,17 +37,6 @@ export const obtenerMesas = async (req: Request, res: Response) => {
 }
 export const actualizarEstadoMesa = async (req: Request, res: Response) => {
   try {
-<<<<<<< HEAD
-    const { id } = req.params;
-    const { estado } = req.body;
-
-    const mesaActualizada = await Mesa.findByIdAndUpdate(id, { estado }, { new: true });
-
-    if (!mesaActualizada) return res.status(404).json({ mensaje: 'Mesa no encontrada' });
-
-    // EMITIR EVENTO: "mesa_actualizada"
-    getIO().emit('mesa_actualizada', mesaActualizada);
-=======
     const { id } = req.params
     const { estado } = req.body // El cliente manda el nuevo estado: 'Libre', 'Ocupada', etc.
 
@@ -56,7 +45,6 @@ export const actualizarEstadoMesa = async (req: Request, res: Response) => {
     if (!mesaActualizada) {
       return res.status(404).json({ mensaje: 'Mesa no encontrada' })
     }
->>>>>>> a979630b778a88d246c7606c6e571d602dcb5d7f
 
     res.status(200).json(mesaActualizada)
   } catch (error) {
