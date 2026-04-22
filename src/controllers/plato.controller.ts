@@ -1,3 +1,4 @@
+//src/controllers/plato.controller.ts
 import { Request, Response } from 'express'
 import Plato from '../models/Plato'
 

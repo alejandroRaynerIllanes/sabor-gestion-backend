@@ -1,3 +1,4 @@
+//src/models/Pedido.ts
 import mongoose, { Schema, Document } from 'mongoose'
 
 // 1. Interfaz y Esquema para el Detalle (Lo que va adentro del pedido)
