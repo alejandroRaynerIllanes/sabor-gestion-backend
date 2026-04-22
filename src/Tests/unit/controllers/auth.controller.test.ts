@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { loginUsuario } from '../../../controllers/auth.controller';
+import { verificarToken, CustomRequest } from '../../../middlewares/auth.middleware';
 import Usuario from '../../../models/Usuario';
 import bcrypt from 'bcryptjs';
 
