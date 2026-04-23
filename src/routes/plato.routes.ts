@@ -1,5 +1,10 @@
 import { Router } from 'express'
-import { crearPlato, obtenerPlatos, actualizarPlato, eliminarPlato } from '../controllers/plato.controller'
+import {
+  crearPlato,
+  obtenerPlatos,
+  actualizarPlato,
+  eliminarPlato
+} from '../controllers/plato.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
 import { soloAdmins } from '../middlewares/rol.middleware'
 
