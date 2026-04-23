@@ -1,3 +1,4 @@
+//src/configs/cloudinary.ts
 import { v2 as cloudinary } from 'cloudinary'
 import multer from 'multer'
 import dotenv from 'dotenv'

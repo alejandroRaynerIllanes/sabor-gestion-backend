@@ -1,8 +1,8 @@
 //src/controllers/auth.controller.ts
-import { Request, Response } from 'express';
-import Usuario from '../models/Usuario';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { Request, Response } from 'express'
+import Usuario from '../models/Usuario'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
 export const loginUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
