@@ -1,3 +1,4 @@
+//src/controllers/plato.controller.ts
 import { Request, Response } from 'express'
 import Plato from '../models/Plato.js'
 import { cloudinary } from '../configs/cloudinary.js'
@@ -30,17 +31,19 @@ export const crearPlato = async (req: Request, res: Response) => {
   }
 }
 
-// GET /api/platos
+// 🔥 ESTA ES LA FUNCIÓN CLAVE QUE NECESITAMOS
 export const obtenerPlatos = async (req: Request, res: Response) => {
   try {
-    const { category } = req.query
+    const { category } = req.query // Extraemos el id de la categoría de la URL
     let filtro = {}
 
+    // Si el usuario mandó ?category=ID, lo añadimos al filtro de búsqueda
     if (category) {
       filtro = { categoria: category }
     }
 
     const platos = await Plato.find(filtro).populate('categoria', 'nombre')
+
     res.status(200).json(platos)
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al obtener los platos', error })
@@ -128,5 +131,27 @@ export const cambiarDisponibilidad = async (req: Request, res: Response) => {
     })
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al cambiar disponibilidad', error })
+  }
+}
+
+export const actualizarPlato = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const platoActualizado = await Plato.findByIdAndUpdate(id, req.body, { new: true });
+    if (!platoActualizado) return res.status(404).json({ mensaje: 'Plato no encontrado' });
+    res.status(200).json(platoActualizado);
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al actualizar', error })
+  }
+}
+
+export const eliminarPlato = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const platoEliminado = await Plato.findByIdAndDelete(id);
+    if (!platoEliminado) return res.status(404).json({ mensaje: 'Plato no encontrado' });
+    res.status(200).json({ mensaje: 'Plato eliminado' });
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al eliminar', error })
   }
 }

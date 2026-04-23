@@ -1,16 +1,25 @@
-import { Request, Response } from 'express'
-import { cloudinary } from '../configs/cloudinary.js'
+import { Request, Response } from 'express';
+import { uploadToCloudinary } from '../configs/cloudinary';
 
-export const deleteImage = async (req: Request, res: Response): Promise<void> => {
+export const subirImagen = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { publicId } = req.body
-    if (!publicId) {
-      res.status(400).json({ message: 'Se requiere el publicId de la imagen' })
-      return
+    // 1. Verificamos que multer haya dejado pasar el archivo
+    if (!req.file) {
+      return res.status(400).json({ mensaje: 'No se proporcionó ninguna imagen válida.' });
     }
-    await cloudinary.uploader.destroy(publicId)
-    res.status(200).json({ message: 'Imagen eliminada correctamente' })
+
+    // 2. Usamos tu función para subir el buffer a Cloudinary
+    const resultado = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+
+    // 3. Devolvemos la URL segura al frontend
+    return res.status(200).json({
+      mensaje: 'Imagen subida con éxito',
+      url: resultado.url,
+      publicId: resultado.publicId
+    });
+
   } catch (error) {
-    res.status(500).json({ message: 'Error al eliminar la imagen', error })
+    console.error('Error en el controlador al subir imagen:', error);
+    return res.status(500).json({ mensaje: 'Error interno del servidor al procesar la imagen.' });
   }
-}
+};

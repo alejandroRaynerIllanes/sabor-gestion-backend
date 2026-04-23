@@ -1,3 +1,4 @@
+//src/app.ts
 import express, { Application, Request, Response } from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
@@ -13,7 +14,7 @@ import pedidoRoutes from './routes/pedido.routes'
 import pagoRoutes from './routes/pago.routes'
 
 // Importamos la ruta de tus cambios locales
-import uploadRouter from './routes/upload.routes.js'
+import uploadRouters from './routes/upload.routes.js'
 
 const app: Application = express()
 
@@ -24,7 +25,7 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true })) // <-- Esto venía de tus cambios
 
 // Rutas de tus cambios
-app.use('/api/upload', uploadRouter)
+app.use('/api/upload', uploadRouters)
 
 // 2. Conectamos las rutas oficiales de la actualización
 app.use('/api/auth', authRoutes)
