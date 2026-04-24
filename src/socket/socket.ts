@@ -6,8 +6,9 @@ let io: SocketIOServer;
 export const initSocket = (httpServer: HTTPServer) => {
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: "http://localhost:5173", // En producción pon la URL de tu frontend (ej: http://localhost:5173)
-      methods: ["GET", "POST", "PATCH"]
+      // Allow local dev ports used by Vite (5173, 5174) and adapt as needed
+      origin: ["http://localhost:5173", "http://localhost:5174"],
+      methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"]
     }
   });
 

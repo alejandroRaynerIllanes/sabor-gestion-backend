@@ -5,6 +5,7 @@ export interface IMesa extends Document {
   capacidad: number
   ubicacion: string
   estado: string
+  tipo?: string
 }
 
 const MesaSchema = new Schema(
@@ -17,6 +18,9 @@ const MesaSchema = new Schema(
       enum: ['Libre', 'Ocupada', 'Reservada', 'Cuenta Solicitada'], // Fusionamos tu diagrama con el RF-04
       default: 'Libre'
     }
+    ,
+    // Tipo interno para diferenciar mesas VIP / normales (frontend usa `type`)
+    tipo: { type: String, enum: ['normal', 'vip'], default: 'normal' }
   },
   {
     timestamps: true,
