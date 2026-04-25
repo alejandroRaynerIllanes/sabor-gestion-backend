@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon --exec tsx src/server.ts",
     "build": "tsc",
+    "start": "node dist/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
     "seed": "ts-node src/utils/seed.ts"
