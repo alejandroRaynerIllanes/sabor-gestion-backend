@@ -31,6 +31,7 @@ export const crearPlato = async (req: Request, res: Response) => {
   }
 }
 
+// GET /api/platos
 // 🔥 ESTA ES LA FUNCIÓN CLAVE QUE NECESITAMOS
 export const obtenerPlatos = async (req: Request, res: Response) => {
   try {
