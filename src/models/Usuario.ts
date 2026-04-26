@@ -20,7 +20,7 @@ const UsuarioSchema = new Schema(
     password: { type: String, required: true },
     rol: {
       type: String,
-      enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero'],
+      enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero', 'Cliente'],
       required: true
     },
     estado: { type: Boolean, default: true } // Por defecto un usuario nuevo está activo

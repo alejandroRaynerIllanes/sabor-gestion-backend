@@ -1,8 +1,8 @@
 //src/controllers/auth.controller.ts
-import { Request, Response } from 'express';
-import Usuario from '../models/Usuario';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { Request, Response } from 'express'
+import Usuario from '../models/Usuario'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
 export const loginUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
@@ -53,5 +53,71 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
   } catch (error) {
     console.error('Error en el login:', error)
     res.status(500).json({ mensaje: 'Error interno del servidor al intentar hacer login' })
+  }
+}
+
+export const registrarUsuario = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { nombre, apellido, ci, email, password } = req.body
+
+    if (!nombre || !apellido || !ci || !email || !password) {
+      return res.status(400).json({
+        mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password'
+      })
+    }
+
+    const usuarioExistente = await Usuario.findOne({
+      $or: [{ email }, { ci }]
+    })
+
+    if (usuarioExistente) {
+      if (usuarioExistente.email === email) {
+        return res.status(400).json({ mensaje: 'El correo electrónico ya está registrado' })
+      }
+
+      if (usuarioExistente.ci === ci) {
+        return res.status(400).json({ mensaje: 'El CI ya está registrado' })
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10)
+    const passwordHasheada = await bcrypt.hash(password, salt)
+
+    const nuevoUsuario = new Usuario({
+      nombre,
+      apellido,
+      ci,
+      email,
+      password: passwordHasheada,
+      rol: 'Cliente',
+      estado: true
+    })
+
+    await nuevoUsuario.save()
+
+    const token = jwt.sign(
+      { id: nuevoUsuario._id, rol: nuevoUsuario.rol },
+      process.env.JWT_SECRET || 'secreto_temporal_de_desarrollo',
+      { expiresIn: '8h' }
+    )
+
+    return res.status(201).json({
+      mensaje: 'Usuario registrado exitosamente',
+      token,
+      usuario: {
+        id: nuevoUsuario._id,
+        nombre: nuevoUsuario.nombre,
+        apellido: nuevoUsuario.apellido,
+        ci: nuevoUsuario.ci,
+        email: nuevoUsuario.email,
+        rol: nuevoUsuario.rol,
+        estado: nuevoUsuario.estado
+      }
+    })
+  } catch (error) {
+    console.error('Error en el registro:', error)
+    return res.status(500).json({
+      mensaje: 'Error interno del servidor al registrar usuario'
+    })
   }
 }

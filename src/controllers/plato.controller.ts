@@ -133,25 +133,3 @@ export const cambiarDisponibilidad = async (req: Request, res: Response) => {
     res.status(500).json({ mensaje: 'Error al cambiar disponibilidad', error })
   }
 }
-
-export const actualizarPlato = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { id } = req.params
-    const platoActualizado = await Plato.findByIdAndUpdate(id, req.body, { new: true })
-    if (!platoActualizado) return res.status(404).json({ mensaje: 'Plato no encontrado' })
-    res.status(200).json(platoActualizado)
-  } catch (error) {
-    res.status(500).json({ mensaje: 'Error al actualizar', error })
-  }
-}
-
-export const eliminarPlato = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { id } = req.params
-    const platoEliminado = await Plato.findByIdAndDelete(id)
-    if (!platoEliminado) return res.status(404).json({ mensaje: 'Plato no encontrado' })
-    res.status(200).json({ mensaje: 'Plato eliminado' })
-  } catch (error) {
-    res.status(500).json({ mensaje: 'Error al eliminar', error })
-  }
-}
