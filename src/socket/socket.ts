@@ -7,9 +7,13 @@ let io: SocketIOServer;
 export const initSocket = (httpServer: HTTPServer) => {
   io = new SocketIOServer(httpServer, {
     cors: {
-      // Allow local dev ports used by Vite (5173, 5174) and adapt as needed
-      origin: ["http://localhost:5173", "http://localhost:5174"],
-      methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"]
+      origin: [
+        "http://localhost:5173", 
+        "http://localhost:5174",
+        "https://tis-pied.vercel.app" 
+      ],
+      methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+      credentials: true // Recomendado para que funcione el handshake con auth
     }
   });
 
