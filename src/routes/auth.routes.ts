@@ -1,10 +1,17 @@
-//src/routes/auth.routes.ts
 import { Router } from 'express'
-import { loginUsuario, registrarUsuario } from '../controllers/auth.controller'
+import {
+  loginUsuario,
+  registrarUsuario,
+  verificarCodigo,
+  reenviarCodigo
+} from '../controllers/auth.controller'
 
 const router = Router()
 
 router.post('/login', loginUsuario)
-router.post('/register', registrarUsuario)
+router.post('/register', registrarUsuario) // Mantenemos la de Jairo
+router.post('/registro', registrarUsuario) // Mantenemos la tuya
+router.post('/verificar-codigo', verificarCodigo)
+router.post('/reenviar-codigo', reenviarCodigo)
 
 export default router
