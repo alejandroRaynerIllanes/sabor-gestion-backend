@@ -23,8 +23,8 @@ app.use(morgan('dev'))
 app.use(cors({
   origin: [
     'http://localhost:5173', 
-    'https://sabor-gestion-backend.vercel.app',
-    'https://tis-pied.vercel.app/' // Pon aquí la URL de tu front si ya tiene deploy
+    'https://sabor-gestion-backend-sars.onrender.com',
+    'https://tis-pied.vercel.app' // Pon aquí la URL de tu front si ya tiene deploy
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
