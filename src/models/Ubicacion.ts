@@ -2,12 +2,15 @@ import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IUbicacion extends Document {
   nombre: string
+  name?: string
   descripcion?: string
 }
 
 const UbicacionSchema = new Schema(
   {
     nombre: { type: String, required: true, unique: true, trim: true },
+    // Campo legacy 'name' que puede existir en la base de datos (no obligatorio)
+    name: { type: String, trim: true },
     descripcion: { type: String, default: '' }
   },
   {
@@ -15,5 +18,14 @@ const UbicacionSchema = new Schema(
     versionKey: false
   }
 )
+
+// Sincronizar 'name' con 'nombre' para compatibilidad con índices legacy
+UbicacionSchema.pre('save', function (next) {
+  const doc: any = this
+  if ((!doc.name || doc.name === '') && doc.nombre) {
+    doc.name = doc.nombre
+  }
+  next()
+})
 
 export default mongoose.model<IUbicacion>('Ubicacion', UbicacionSchema)
