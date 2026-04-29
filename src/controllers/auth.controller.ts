@@ -1,4 +1,3 @@
-//src/controllers/auth.controller.ts
 import { Request, Response } from 'express'
 import Usuario from '../models/Usuario'
 import bcrypt from 'bcryptjs'
@@ -52,7 +51,7 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
       })
     }
 
-    console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha iniciado sesión.`)
+    console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha verificado y logueado.`)
 
     // 4. Generar el Token JWT
     const token = jwt.sign(
@@ -77,29 +76,48 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
     res.status(500).json({ mensaje: 'Error interno del servidor al intentar hacer login' })
   }
 }
+
 export const registrarUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { nombre, apellido, ci, email, password, rol } = req.body
+    const { nombre, apellido, ci, email, password } = req.body
 
-    const existe = await Usuario.findOne({ email })
-    if (existe) {
-      return res.status(409).json({ mensaje: 'El email ya está registrado' })
+    // Validaciones aportadas por la rama de Jairo
+    if (!nombre || !apellido || !ci || !email || !password) {
+      return res.status(400).json({
+        mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password'
+      })
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
+    const usuarioExistente = await Usuario.findOne({
+      $or: [{ email }, { ci }]
+    })
+
+    if (usuarioExistente) {
+      if (usuarioExistente.email === email) {
+        return res.status(400).json({ mensaje: 'El correo electrónico ya está registrado' })
+      }
+
+      if (usuarioExistente.ci === ci) {
+        return res.status(400).json({ mensaje: 'El CI ya está registrado' })
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10)
+    const passwordHasheada = await bcrypt.hash(password, salt)
 
     const nuevoUsuario = new Usuario({
       nombre,
       apellido,
       ci,
       email,
-      password: passwordHash,
-      rol
+      password: passwordHasheada,
+      rol: 'Cliente', // Fijo como lo definió Jairo
+      estado: true
     })
 
     await nuevoUsuario.save()
 
-    // Enviar código inmediatamente tras el registro exitoso
+    // Sistema de verificación por correo conservado de la rama base
     await codigoService.procesarEnvioDeCodigo(
       nuevoUsuario.email,
       nuevoUsuario.nombre,
