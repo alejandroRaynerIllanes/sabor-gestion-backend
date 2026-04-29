@@ -20,12 +20,11 @@ const UbicacionSchema = new Schema(
 )
 
 // Sincronizar 'name' con 'nombre' para compatibilidad con índices legacy
-UbicacionSchema.pre('save', function (next) {
+UbicacionSchema.pre('save', function () {
   const doc: any = this
   if ((!doc.name || doc.name === '') && doc.nombre) {
     doc.name = doc.nombre
   }
-  next()
 })
 
 export default mongoose.model<IUbicacion>('Ubicacion', UbicacionSchema)
