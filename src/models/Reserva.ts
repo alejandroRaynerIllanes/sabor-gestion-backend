@@ -3,14 +3,22 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface IReserva extends Document {
   fecha: Date
   hora: string
+  clienteNombre: string
+  cantidadPersonas: number
+  vip: boolean
   mesa: mongoose.Types.ObjectId // Relación con la Mesa
   usuario: mongoose.Types.ObjectId // Relación con el Usuario que hizo/registró la reserva
+  createdAt: Date
+  updatedAt: Date
 }
 
 const ReservaSchema = new Schema(
   {
     fecha: { type: Date, required: true },
-    hora: { type: String, required: true }, // Ej: "19:30"
+    hora: { type: String, required: true },
+    clienteNombre: { type: String, required: true, trim: true },
+    cantidadPersonas: { type: Number, required: true, min: 1 },
+    vip: { type: Boolean, default: false },
     mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: true },
     usuario: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true }
   },
