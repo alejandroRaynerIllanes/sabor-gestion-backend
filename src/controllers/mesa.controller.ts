@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket';
+import mongoose from 'mongoose'
 
 // Mapeos entre estados DB <-> frontend
 const estadoBackendToFrontend = (estado: string | undefined) => {
@@ -20,11 +21,17 @@ const estadoFrontendToBackend = (status: string | undefined) => {
 // Helper: mapear documento de Mongo a formato esperado por el frontend
 const mapMesa = (m: any) => {
   if (!m) return null;
+  // Preferir `ubicacionId` poblada cuando exista, si no usar la cadena `ubicacion`
+  const locationName = m.ubicacionId && (m.ubicacionId.nombre || m.ubicacionId.name)
+    ? (m.ubicacionId.nombre || m.ubicacionId.name)
+    : (m.ubicacion || m.location || '')
+  const locationId = m.ubicacionId ? (m.ubicacionId._id || m.ubicacionId) : null
   return {
     id: m._id,
     name: m.numero || m.name || '',
     capacity: m.capacidad ?? m.capacity ?? 0,
-    location: m.ubicacion || m.location || '',
+    location: locationName,
+    locationId: locationId,
     status: estadoBackendToFrontend(m.estado || m.status),
     type: m.tipo || m.type || 'normal',
     createdAt: m.createdAt,
@@ -38,30 +45,46 @@ export const crearMesa = async (req: Request, res: Response) => {
 
     // Si mandas un array [{}], normalizamos y usamos insertMany
     if (Array.isArray(body)) {
-      const input = body.map((p: any) => ({
+      const input = body.map((p: any) => {
+        const base: any = {
           numero: p.name || p.numero,
           capacidad: p.capacity || p.capacidad,
-          ubicacion: p.location || p.ubicacion,
           estado: estadoFrontendToBackend(p.status || p.estado) || 'Libre',
           tipo: p.type || p.tipo || 'normal'
-        }))
+        }
+        // Si mandan un id válido lo guardamos en ubicacionId, si mandan texto lo guardamos en ubicacion
+        if (p.location && mongoose.Types.ObjectId.isValid(String(p.location))) base.ubicacionId = p.location
+        else base.ubicacion = p.location || p.ubicacion
+        return base
+      })
 
       const nuevasMesas = await Mesa.insertMany(input)
-      const mapped = nuevasMesas.map(mapMesa)
+      // volver a poblar para obtener nombres de ubicacion si existen
+      const pobladas = await Mesa.find({ _id: { $in: nuevasMesas.map((m: any) => m._id) } }).populate('ubicacionId', 'nombre')
+      const mapped = pobladas.map(mapMesa)
       try { getIO().emit('mesas:created', mapped) } catch (e) { }
       return res.status(201).json(mapped)
     }
 
-    const nuevaMesa = new Mesa({
+    const mesaData: any = {
       numero: body.name || body.numero,
       capacidad: body.capacity || body.capacidad,
-      ubicacion: body.location || body.ubicacion,
       estado: estadoFrontendToBackend(body.status || body.estado) || 'Libre',
       tipo: body.type || body.tipo || 'normal'
-    })
+    }
 
+    if (body.location !== undefined) {
+      if (mongoose.Types.ObjectId.isValid(String(body.location))) mesaData.ubicacionId = body.location
+      else mesaData.ubicacion = body.location
+    } else if (body.ubicacion !== undefined) {
+      if (mongoose.Types.ObjectId.isValid(String(body.ubicacion))) mesaData.ubicacionId = body.ubicacion
+      else mesaData.ubicacion = body.ubicacion
+    }
+
+    const nuevaMesa = new Mesa(mesaData)
     await nuevaMesa.save()
-    const mapped = mapMesa(nuevaMesa)
+    const nuevaMesaPoblada = await Mesa.findById(nuevaMesa._id).populate('ubicacionId', 'nombre')
+    const mapped = mapMesa(nuevaMesaPoblada)
     try { getIO().emit('mesas:created', mapped) } catch (e) { }
     res.status(201).json(mapped)
   } catch (error: any) {
@@ -74,12 +97,13 @@ export const obtenerMesas = async (req: Request, res: Response) => {
     const { location } = req.query // Extraemos el parámetro 'location' de la URL
     let filtro: any = {}
 
-    // Si el usuario envía una ubicación, filtramos. Ej: ?location=Terraza
+    // Si el usuario envía una ubicación, filtramos. Aceptamos id (ubicacionId) o nombre
     if (location) {
-      filtro = { ubicacion: location }
+      if (mongoose.Types.ObjectId.isValid(String(location))) filtro = { ubicacionId: location }
+      else filtro = { ubicacion: location }
     }
 
-    const mesas = await Mesa.find(filtro)
+    const mesas = await Mesa.find(filtro).populate('ubicacionId', 'nombre')
     res.status(200).json(mesas.map(mapMesa))
   } catch (error: any) {
     res.status(500).json({ mensaje: 'Error al obtener las mesas', error: error.message || error })
@@ -89,7 +113,7 @@ export const obtenerMesas = async (req: Request, res: Response) => {
 export const obtenerMesaPorId = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const mesa = await Mesa.findById(id)
+    const mesa = await Mesa.findById(id).populate('ubicacionId', 'nombre')
     if (!mesa) return res.status(404).json({ mensaje: 'Mesa no encontrada' })
     res.status(200).json(mapMesa(mesa))
   } catch (error: any) {
@@ -105,11 +129,14 @@ export const actualizarMesa = async (req: Request, res: Response) => {
     const update: any = {}
     if (body.name !== undefined) update.numero = body.name
     if (body.capacity !== undefined) update.capacidad = body.capacity
-    if (body.location !== undefined) update.ubicacion = body.location
+    if (body.location !== undefined) {
+      if (mongoose.Types.ObjectId.isValid(String(body.location))) update.ubicacionId = body.location
+      else update.ubicacion = body.location
+    }
     if (body.status !== undefined) update.estado = estadoFrontendToBackend(body.status)
     if (body.type !== undefined) update.tipo = body.type
 
-    const mesaActualizada = await Mesa.findByIdAndUpdate(id, update, { new: true })
+    const mesaActualizada = await Mesa.findByIdAndUpdate(id, update, { new: true }).populate('ubicacionId', 'nombre')
     if (!mesaActualizada) return res.status(404).json({ mensaje: 'Mesa no encontrada' })
     const mapped = mapMesa(mesaActualizada)
     try { getIO().emit('mesas:updated', mapped) } catch (e) { }

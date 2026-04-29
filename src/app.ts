@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.routes'
 import usuarioRoutes from './routes/usuario.routes'
 import categoriaRoutes from './routes/categoria.routes'
 import mesaRoutes from './routes/mesa.routes'
+import ubicacionRoutes from './routes/ubicacion.routes'
 import platoRoutes from './routes/plato.routes'
 import reservaRoutes from './routes/reserva.routes'
 import pedidoRoutes from './routes/pedido.routes'
@@ -41,6 +42,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/usuarios', usuarioRoutes)
 app.use('/api/categorias', categoriaRoutes)
 app.use('/api/mesas', mesaRoutes)
+app.use('/api/ubicaciones', ubicacionRoutes)
 app.use('/api/platos', platoRoutes)
 app.use('/api/reservas', reservaRoutes)
 app.use('/api/pedidos', pedidoRoutes)
