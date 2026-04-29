@@ -37,7 +37,8 @@ async function main() {
     let ubic = await Ubicacion.findOne({ nombre: { $regex: `^${escapeRegex(raw)}$`, $options: 'i' } })
     if (!ubic) {
       try {
-        ubic = new Ubicacion({ nombre: raw })
+        // Asegurar que 'name' también se establece para evitar índices legacy con null
+        ubic = new Ubicacion({ nombre: raw, name: raw })
         await ubic.save()
         creadasCount++
       } catch (err) {

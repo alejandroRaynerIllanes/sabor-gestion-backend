@@ -1,6 +1,10 @@
 import { Request, Response } from 'express'
 import Ubicacion from '../models/Ubicacion'
 
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export const obtenerUbicaciones = async (req: Request, res: Response) => {
   try {
     const ubicaciones = await Ubicacion.find().sort({ nombre: 1 })
@@ -13,11 +17,19 @@ export const obtenerUbicaciones = async (req: Request, res: Response) => {
 export const crearUbicacion = async (req: Request, res: Response) => {
   try {
     const { nombre, name } = req.body
-    const finalName = nombre || name
+    const finalName = (nombre || name || '').toString().trim()
     if (!finalName) return res.status(400).json({ mensaje: 'Nombre de ubicación requerido' })
+
     // Evitar duplicados (case-insensitive) tanto en 'nombre' como en campo legacy 'name'
-    const regex = { $regex: `^${finalName}$`, $options: 'i' }
-    const existente = await Ubicacion.findOne({ $or: [{ nombre: regex }, { name: regex }] })
+    const regex = { $regex: `^${escapeRegex(finalName)}$`, $options: 'i' }
+    let existente
+    try {
+      existente = await Ubicacion.findOne({ $or: [{ nombre: regex }, { name: regex }] })
+    } catch (findErr: any) {
+      // Problema en la consulta (ej. construcción de regex inválido) -> devolver 400
+      return res.status(400).json({ mensaje: 'Nombre de ubicación inválido', error: findErr.message || findErr })
+    }
+
     if (existente) return res.status(400).json({ mensaje: 'Ubicación ya existe', ubicacion: { id: existente._id, nombre: existente.nombre || (existente as any).name } })
 
     try {
@@ -25,13 +37,18 @@ export const crearUbicacion = async (req: Request, res: Response) => {
       await nueva.save()
       res.status(201).json({ id: nueva._id, nombre: nueva.nombre || (nueva as any).name })
     } catch (err: any) {
-      // Manejar duplicado por índice directamente (concurrency)
-      if (err && err.code === 11000) {
+      // Manejar duplicado por índice directamente (concurrency) y otros errores previsibles
+      if (err && (err.code === 11000 || (err.code && err.code === 11000))) {
         return res.status(400).json({ mensaje: 'Ubicación ya existe (duplicada por índice)' })
+      }
+      // Si el error tiene keyValue/name problema, devolver 400 con detalle
+      if (err && err.keyValue) {
+        return res.status(400).json({ mensaje: 'Error creando ubicación', detalle: err.keyValue })
       }
       throw err
     }
   } catch (error: any) {
+    console.error('crearUbicacion error:', error)
     res.status(500).json({ mensaje: 'Error al crear ubicacion', error: error.message || error })
   }
 }
