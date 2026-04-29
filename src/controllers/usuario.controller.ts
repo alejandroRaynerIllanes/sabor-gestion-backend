@@ -65,9 +65,13 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
         estado: nuevoUsuario.estado
       }
     })
-  } catch (error) {
-    console.error('Error al crear usuario:', error)
-    res.status(500).json({ mensaje: 'Error al crear el usuario en el servidor' })
+  } catch (error: any) {
+    console.error('ERROR DETALLADO:', error);
+    res.status(500).json({ 
+        mensaje: 'Error en el servidor', 
+        error: error.message, // Esto te dirá si es por el CI, el ROL o el EMAIL
+        stack: error.errors 
+    });
   }
 }
 
