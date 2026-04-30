@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "seed": "ts-node src/utils/seed.ts"
+    "seed": "ts-node src/utils/seed.ts",
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

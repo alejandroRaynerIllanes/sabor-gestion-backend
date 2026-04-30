@@ -13,6 +13,7 @@ export class CodigoVerificacionRepository {
       tipo,
       expira_en: expiracion
     })
+    
     return await nuevoCodigo.save()
   }
 

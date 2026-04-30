@@ -14,4 +14,8 @@ router.post('/registro', registrarUsuario) // Mantenemos la tuya
 router.post('/verificar-codigo', verificarCodigo)
 router.post('/reenviar-codigo', reenviarCodigo)
 
+router.post('/registro', registrarUsuario)
+router.post('/verificar-codigo', verificarCodigo)
+router.post('/reenviar-codigo', reenviarCodigo)
+
 export default router
