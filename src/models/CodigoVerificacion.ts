@@ -1,12 +1,12 @@
 // src/models/CodigoVerificacion.ts
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document } from 'mongoose'
 
 export interface ICodigoVerificacion extends Document {
-  usuarioId: string; // ID del usuario que solicitó el código
-  codigo: string;
-  tipo: string;      // Ej: 'verificacion_email' o 'recuperar_password'
-  expira_en: Date;
-  usado: boolean;
+  usuarioId: string // ID del usuario que solicitó el código
+  codigo: string
+  tipo: string // Ej: 'verificacion_email' o 'recuperar_password'
+  expira_en: Date
+  usado: boolean
 }
 
 const CodigoVerificacionSchema = new Schema(
@@ -15,12 +15,12 @@ const CodigoVerificacionSchema = new Schema(
     codigo: { type: String, required: true },
     tipo: { type: String, required: true },
     expira_en: { type: Date, required: true },
-    usado: { type: Boolean, default: false },
+    usado: { type: Boolean, default: false }
   },
   {
     timestamps: true,
     versionKey: false
   }
-);
+)
 
-export default mongoose.model<ICodigoVerificacion>("CodigoVerificacion", CodigoVerificacionSchema);
+export default mongoose.model<ICodigoVerificacion>('CodigoVerificacion', CodigoVerificacionSchema)

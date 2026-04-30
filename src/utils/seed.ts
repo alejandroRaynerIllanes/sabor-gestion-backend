@@ -10,8 +10,9 @@ dotenv.config()
 
 const seed = async () => {
   try {
-    const mongoURI = process.env.DB_URI || 'mongodb+srv://usuario:contraseña@cluster0.mongodb.net/dbname'
-    
+    const mongoURI =
+      process.env.DB_URI || 'mongodb+srv://usuario:contraseña@cluster0.mongodb.net/dbname'
+
     await mongoose.connect(mongoURI)
     console.log('🟢 Conectado a la Base de Datos para seeding...')
 
@@ -101,10 +102,12 @@ const seed = async () => {
     console.log('   Admin: admin@sabor.com / admin123')
     console.log('   Mesero: mesero@sabor.com / mesero123')
     console.log('')
-    
+
     process.exit(0)
   } catch (error) {
     console.error('🔴 Error en seeding:', error)
     process.exit(1)
   }
 }
+
+seed() // Ejecuta el proceso

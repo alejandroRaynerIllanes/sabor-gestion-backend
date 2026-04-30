@@ -1,7 +1,7 @@
-import nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer'
 
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter: nodemailer.Transporter
 
   constructor() {
     this.transporter = nodemailer.createTransport({
@@ -10,9 +10,9 @@ export class EmailService {
       secure: false,
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+        pass: process.env.SMTP_PASS
+      }
+    })
   }
 
   async enviarEmail(to: string, subject: string, html: string): Promise<void> {
@@ -21,11 +21,11 @@ export class EmailService {
         from: process.env.SMTP_FROM || '"Sistema" <no-reply@sistema.com>',
         to,
         subject,
-        html,
-      });
+        html
+      })
     } catch (error) {
-      console.error('Error enviando email:', error);
-      throw new Error('No se pudo enviar el email');
+      console.error('Error enviando email:', error)
+      throw new Error('No se pudo enviar el email')
     }
   }
 
@@ -38,6 +38,6 @@ export class EmailService {
         <h1 style="color: #2563eb; letter-spacing: 5px;">${codigo}</h1>
         <p>Expira en 15 minutos.</p>
       </div>
-    `;
+    `
   }
 }

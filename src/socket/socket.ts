@@ -1,57 +1,64 @@
-import { Server as SocketIOServer } from 'socket.io';
-import { Server as HTTPServer } from 'http';
-import jwt from 'jsonwebtoken';
+import { Server as SocketIOServer } from 'socket.io'
+import { Server as HTTPServer } from 'http'
+import jwt from 'jsonwebtoken'
 
-let io: SocketIOServer;
+let io: SocketIOServer
 
 export const initSocket = (httpServer: HTTPServer) => {
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: [
-        "http://localhost:5173", 
-        "http://localhost:5174",
-        "https://tis-pied.vercel.app" 
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'https://tis-pied.vercel.app'
       ],
-      methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true // Recomendado para que funcione el handshake con auth
     }
-  });
+  })
 
   // Middleware de autenticación para el handshake de socket
   io.use((socket, next) => {
     try {
-      const token = socket.handshake.auth?.token || ((socket.handshake.headers as any)?.authorization ? (socket.handshake.headers as any).authorization.split(' ')[1] : null);
+      const token =
+        socket.handshake.auth?.token ||
+        ((socket.handshake.headers as any)?.authorization
+          ? (socket.handshake.headers as any).authorization.split(' ')[1]
+          : null)
+          
       if (!token) {
-        console.log(`⚡ Socket rechazado (sin token) id=${socket.id}`);
-        return next(new Error('Unauthorized'));
+        console.log(`⚡ Socket rechazado (sin token) id=${socket.id}`)
+        return next(new Error('Unauthorized'))
       }
 
-      const secret = process.env.JWT_SECRET || 'secreto_temporal_de_desarrollo';
-      const decoded = jwt.verify(token, secret) as any;
+      const secret = process.env.JWT_SECRET || 'secreto_temporal_de_desarrollo'
+      const decoded = jwt.verify(token, secret) as any
+      
       // Guardar info de usuario en el socket para usos posteriores
-      (socket as any).data = (socket as any).data || {};
-      (socket as any).data.usuario = decoded;
-      return next();
+      ;(socket as any).data = (socket as any).data || {}
+      ;(socket as any).data.usuario = decoded
+      
+      return next()
     } catch (err) {
-      console.log(`⚡ Socket rechazado (token inválido) id=${socket.id}`);
-      return next(new Error('Unauthorized'));
+      console.log(`⚡ Socket rechazado (token inválido) id=${socket.id}`)
+      return next(new Error('Unauthorized'))
     }
-  });
+  })
 
   io.on('connection', (socket) => {
-    console.log(`⚡ Usuario conectado: ${socket.id}`);
+    console.log(`⚡ Usuario conectado: ${socket.id}`)
 
     socket.on('disconnect', () => {
-      console.log('🔥 Usuario desconectado');
-    });
-  });
+      console.log('🔥 Usuario desconectado')
+    })
+  })
 
-  return io;
-};
+  return io
+}
 
 export const getIO = () => {
   if (!io) {
-    throw new Error("Socket.io no ha sido inicializado");
+    throw new Error('Socket.io no ha sido inicializado')
   }
-  return io;
-};
+  return io
+}

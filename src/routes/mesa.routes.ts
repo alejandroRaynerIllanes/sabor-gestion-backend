@@ -1,6 +1,11 @@
 import { Router } from 'express'
 import { crearMesa, obtenerMesas } from '../controllers/mesa.controller'
-import { actualizarEstadoMesa, obtenerMesaPorId, actualizarMesa, eliminarMesa } from '../controllers/mesa.controller'
+import {
+  actualizarEstadoMesa,
+  obtenerMesaPorId,
+  actualizarMesa,
+  eliminarMesa
+} from '../controllers/mesa.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
 import { soloAdmins } from '../middlewares/rol.middleware'
 

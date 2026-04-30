@@ -19,8 +19,7 @@ const MesaSchema = new Schema(
       type: String,
       enum: ['Libre', 'Ocupada', 'Reservada', 'Cuenta Solicitada'], // Fusionamos tu diagrama con el RF-04
       default: 'Libre'
-    }
-    ,
+    },
     // Tipo interno para diferenciar mesas VIP / normales (frontend usa `type`)
     tipo: { type: String, enum: ['normal', 'vip'], default: 'normal' }
   },

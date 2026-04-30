@@ -1,31 +1,33 @@
 import { Request, Response } from 'express'
 import Mesa from '../models/Mesa'
-import { getIO } from '../socket/socket';
+import { getIO } from '../socket/socket'
 import mongoose from 'mongoose'
 
 // Mapeos entre estados DB <-> frontend
 const estadoBackendToFrontend = (estado: string | undefined) => {
-  if (!estado) return 'Disponible';
-  if (estado === 'Libre') return 'Disponible';
-  if (estado === 'Cuenta Solicitada') return 'Esperando pago';
-  return estado; // 'Ocupada', 'Reservada'
+  if (!estado) return 'Disponible'
+  if (estado === 'Libre') return 'Disponible'
+  if (estado === 'Cuenta Solicitada') return 'Esperando pago'
+  return estado // 'Ocupada', 'Reservada'
 }
 
 const estadoFrontendToBackend = (status: string | undefined) => {
-  if (!status) return undefined;
-  if (status === 'Disponible') return 'Libre';
-  if (status === 'Esperando pago') return 'Cuenta Solicitada';
-  return status; // 'Ocupada', 'Reservada'
+  if (!status) return undefined
+  if (status === 'Disponible') return 'Libre'
+  if (status === 'Esperando pago') return 'Cuenta Solicitada'
+  return status // 'Ocupada', 'Reservada'
 }
 
 // Helper: mapear documento de Mongo a formato esperado por el frontend
 const mapMesa = (m: any) => {
-  if (!m) return null;
+  if (!m) return null
+  
   // Preferir `ubicacionId` poblada cuando exista, si no usar la cadena `ubicacion`
   const locationName = m.ubicacionId && (m.ubicacionId.nombre || m.ubicacionId.name)
     ? (m.ubicacionId.nombre || m.ubicacionId.name)
     : (m.ubicacion || m.location || '')
   const locationId = m.ubicacionId ? (m.ubicacionId._id || m.ubicacionId) : null
+
   return {
     id: m._id,
     name: m.numero || m.name || '',
@@ -85,7 +87,9 @@ export const crearMesa = async (req: Request, res: Response) => {
     await nuevaMesa.save()
     const nuevaMesaPoblada = await Mesa.findById(nuevaMesa._id).populate('ubicacionId', 'nombre')
     const mapped = mapMesa(nuevaMesaPoblada)
+    
     try { getIO().emit('mesas:created', mapped) } catch (e) { }
+    
     res.status(201).json(mapped)
   } catch (error: any) {
     res.status(500).json({ mensaje: 'Error al crear la mesa', error: error.message || error })
@@ -139,7 +143,9 @@ export const actualizarMesa = async (req: Request, res: Response) => {
     const mesaActualizada = await Mesa.findByIdAndUpdate(id, update, { new: true }).populate('ubicacionId', 'nombre')
     if (!mesaActualizada) return res.status(404).json({ mensaje: 'Mesa no encontrada' })
     const mapped = mapMesa(mesaActualizada)
+    
     try { getIO().emit('mesas:updated', mapped) } catch (e) { }
+    
     res.status(200).json(mapped)
   } catch (error: any) {
     res.status(500).json({ mensaje: 'Error al actualizar la mesa', error: error.message || error })
@@ -151,13 +157,15 @@ export const actualizarEstadoMesa = async (req: Request, res: Response) => {
     const { id } = req.params
     const { estado } = req.body // El cliente manda el nuevo estado: 'Libre', 'Ocupada', etc.
 
-    const mesaActualizada = await Mesa.findByIdAndUpdate(id, { estado }, { new: true })
+    // Añadí el populate para que si el socket lo emite, mande los datos completos
+    const mesaActualizada = await Mesa.findByIdAndUpdate(id, { estado }, { new: true }).populate('ubicacionId', 'nombre')
 
     if (!mesaActualizada) {
       return res.status(404).json({ mensaje: 'Mesa no encontrada' })
     }
 
     const mapped = mapMesa(mesaActualizada)
+    
     try { getIO().emit('mesas:updated', mapped) } catch (e) { }
 
     res.status(200).json(mapped)
@@ -171,8 +179,11 @@ export const eliminarMesa = async (req: Request, res: Response) => {
     const { id } = req.params
     const eliminado = await Mesa.findByIdAndDelete(id)
     if (!eliminado) return res.status(404).json({ mensaje: 'Mesa no encontrada' })
+    
     const mapped = mapMesa(eliminado)
+    
     try { getIO().emit('mesas:deleted', mapped) } catch (e) { }
+    
     res.status(200).json({ mensaje: 'Mesa eliminada', mesa: mapped })
   } catch (error: any) {
     res.status(500).json({ mensaje: 'Error al eliminar mesa', error: error.message || error })
