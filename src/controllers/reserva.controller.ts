@@ -83,7 +83,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     // 3. Lógica de Gustavo: Emitimos la reserva por WebSockets (pero con los datos formateados)
     try {
       getIO().emit('nueva_reserva', reservaFormateada)
-      
+
       // Emitimos también que la mesa se actualizó para que en el mapa cambie a "Reservada" en tiempo real
       getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
     } catch (socketError) {
@@ -91,7 +91,6 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     }
 
     return res.status(201).json(reservaFormateada)
-    
   } catch (error) {
     console.error('Error al crear la reserva:', error)
     return res.status(500).json({ mensaje: 'Error al crear la reserva', error })

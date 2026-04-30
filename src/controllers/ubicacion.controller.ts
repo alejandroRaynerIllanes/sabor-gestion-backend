@@ -8,7 +8,9 @@ function escapeRegex(s: string) {
 export const obtenerUbicaciones = async (req: Request, res: Response) => {
   try {
     const ubicaciones = await Ubicacion.find().sort({ nombre: 1 })
-    res.status(200).json(ubicaciones.map(u => ({ id: u._id, nombre: u.nombre || (u as any).name })))
+    res
+      .status(200)
+      .json(ubicaciones.map((u) => ({ id: u._id, nombre: u.nombre || (u as any).name })))
   } catch (error: any) {
     res.status(500).json({ mensaje: 'Error al obtener ubicaciones', error: error.message || error })
   }
@@ -27,10 +29,16 @@ export const crearUbicacion = async (req: Request, res: Response) => {
       existente = await Ubicacion.findOne({ $or: [{ nombre: regex }, { name: regex }] })
     } catch (findErr: any) {
       // Problema en la consulta (ej. construcción de regex inválido) -> devolver 400
-      return res.status(400).json({ mensaje: 'Nombre de ubicación inválido', error: findErr.message || findErr })
+      return res
+        .status(400)
+        .json({ mensaje: 'Nombre de ubicación inválido', error: findErr.message || findErr })
     }
 
-    if (existente) return res.status(400).json({ mensaje: 'Ubicación ya existe', ubicacion: { id: existente._id, nombre: existente.nombre || (existente as any).name } })
+    if (existente)
+      return res.status(400).json({
+        mensaje: 'Ubicación ya existe',
+        ubicacion: { id: existente._id, nombre: existente.nombre || (existente as any).name }
+      })
 
     try {
       const nueva = new Ubicacion({ nombre: finalName, name: finalName })

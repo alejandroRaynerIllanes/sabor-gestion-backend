@@ -31,7 +31,7 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
 
     if (!usuarioEncontrado.verificado) {
       console.log(` [LOGIN] Bloqueado: ${email} no ha verificado su correo. Enviando código...`)
-      
+
       try {
         await codigoService.procesarEnvioDeCodigo(
           usuarioEncontrado.email,
@@ -67,7 +67,7 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
         apellido: usuarioEncontrado.apellido,
         rol: usuarioEncontrado.rol
       }
-    }) 
+    })
   } catch (error) {
     console.error('Error en el login:', error)
     res.status(500).json({ mensaje: 'Error interno del servidor al intentar hacer login' })

@@ -19,4 +19,4 @@ connectDB().then(() => {
     console.log(`🚀 Servidor con WebSockets en http://localhost:${PORT}`)
   })
 })
-export default httpServer;
+export default httpServer

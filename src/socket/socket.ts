@@ -7,11 +7,7 @@ let io: SocketIOServer
 export const initSocket = (httpServer: HTTPServer) => {
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: [
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'https://tis-pied.vercel.app'
-      ],
+      origin: ['http://localhost:5173', 'http://localhost:5174', 'https://tis-pied.vercel.app'],
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       credentials: true // Recomendado para que funcione el handshake con auth
     }
@@ -25,7 +21,7 @@ export const initSocket = (httpServer: HTTPServer) => {
         ((socket.handshake.headers as any)?.authorization
           ? (socket.handshake.headers as any).authorization.split(' ')[1]
           : null)
-          
+
       if (!token) {
         console.log(`⚡ Socket rechazado (sin token) id=${socket.id}`)
         return next(new Error('Unauthorized'))
@@ -33,11 +29,11 @@ export const initSocket = (httpServer: HTTPServer) => {
 
       const secret = process.env.JWT_SECRET || 'secreto_temporal_de_desarrollo'
       const decoded = jwt.verify(token, secret) as any
-      
+
       // Guardar info de usuario en el socket para usos posteriores
       ;(socket as any).data = (socket as any).data || {}
       ;(socket as any).data.usuario = decoded
-      
+
       return next()
     } catch (err) {
       console.log(`⚡ Socket rechazado (token inválido) id=${socket.id}`)

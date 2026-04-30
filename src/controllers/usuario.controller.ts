@@ -66,12 +66,12 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
       }
     })
   } catch (error: any) {
-    console.error('ERROR DETALLADO:', error);
-    res.status(500).json({ 
-        mensaje: 'Error en el servidor', 
-        error: error.message, // Esto te dirá si es por el CI, el ROL o el EMAIL
-        stack: error.errors 
-    });
+    console.error('ERROR DETALLADO:', error)
+    res.status(500).json({
+      mensaje: 'Error en el servidor',
+      error: error.message, // Esto te dirá si es por el CI, el ROL o el EMAIL
+      stack: error.errors
+    })
   }
 }
 
@@ -83,7 +83,9 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     const { id } = req.params
     const { nombre, apellido, ci, email, password, rol } = req.body
 
-    console.log(`\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`)
+    console.log(
+      `\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`
+    )
 
     // Buscar al usuario por ID
     let usuario = await Usuario.findById(id)
@@ -128,7 +130,9 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     res.status(200).json({ mensaje: 'Usuario actualizado', usuario: usuarioActualizado })
   } catch (error: any) {
     console.error('Error al actualizar:', error)
-    res.status(500).json({ mensaje: 'Error al actualizar el usuario', error: error.message || error })
+    res
+      .status(500)
+      .json({ mensaje: 'Error al actualizar el usuario', error: error.message || error })
   }
 }
 

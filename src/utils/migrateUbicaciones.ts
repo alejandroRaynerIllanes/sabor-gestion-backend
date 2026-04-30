@@ -34,7 +34,9 @@ async function main() {
     }
 
     // Buscar ubicación existente (case-insensitive)
-    let ubic = await Ubicacion.findOne({ nombre: { $regex: `^${escapeRegex(raw)}$`, $options: 'i' } })
+    let ubic = await Ubicacion.findOne({
+      nombre: { $regex: `^${escapeRegex(raw)}$`, $options: 'i' }
+    })
     if (!ubic) {
       try {
         // Asegurar que 'name' también se establece para evitar índices legacy con null
@@ -43,7 +45,9 @@ async function main() {
         creadasCount++
       } catch (err) {
         // Posible duplicado por concurrencia; reintentar buscar
-        ubic = await Ubicacion.findOne({ nombre: { $regex: `^${escapeRegex(raw)}$`, $options: 'i' } })
+        ubic = await Ubicacion.findOne({
+          nombre: { $regex: `^${escapeRegex(raw)}$`, $options: 'i' }
+        })
         if (!ubic) throw err
       }
     }
@@ -59,7 +63,7 @@ async function main() {
   process.exit(0)
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Error en migración:', err)
   process.exit(1)
 })
