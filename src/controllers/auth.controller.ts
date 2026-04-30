@@ -38,12 +38,22 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
     if (!usuarioEncontrado.verificado) {
       console.log(` [LOGIN] Bloqueado: ${email} no ha verificado su correo. Enviando código...`)
       
-      await codigoService.procesarEnvioDeCodigo(
-        usuarioEncontrado.email,
-        usuarioEncontrado.nombre,
-        usuarioEncontrado.apellido,
-        usuarioEncontrado._id.toString()
-      )
+      try {
+        await codigoService.procesarEnvioDeCodigo(
+          usuarioEncontrado.email,
+          usuarioEncontrado.nombre,
+          usuarioEncontrado.apellido,
+          usuarioEncontrado._id.toString()
+        )
+      } catch (err) {
+        console.error('Error al enviar código de verificación durante login:', err)
+        // Respondemos 403 pero con mensaje más amable, evitando 500 por fallo externo (SMTP)
+        return res.status(403).json({
+          mensaje: 'Debes verificar tu correo antes de ingresar. No fue posible enviar el código de verificación — contacta al administrador.',
+          requiereVerificacion: true,
+          usuarioId: usuarioEncontrado._id
+        })
+      }
 
       return res.status(403).json({
         mensaje: 'Debes verificar tu correo antes de ingresar. Te hemos enviado un nuevo código.',
@@ -99,19 +109,28 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
     
     await nuevoUsuario.save()
 
-    // Enviar código inmediatamente tras el registro exitoso
-    await codigoService.procesarEnvioDeCodigo(
-      nuevoUsuario.email, 
-      nuevoUsuario.nombre, 
-      nuevoUsuario.apellido, 
-      nuevoUsuario._id.toString()
-    )
+    // Enviar código inmediatamente tras el registro exitoso (no fallar si SMTP está mal configurado)
+    try {
+      await codigoService.procesarEnvioDeCodigo(
+        nuevoUsuario.email, 
+        nuevoUsuario.nombre, 
+        nuevoUsuario.apellido, 
+        nuevoUsuario._id.toString()
+      )
 
-    return res.status(201).json({
-      mensaje: "Registro exitoso. Se ha enviado un código a tu correo.",
-      requiereVerificacion: true,
-      usuarioId: nuevoUsuario._id
-    })
+      return res.status(201).json({
+        mensaje: "Registro exitoso. Se ha enviado un código a tu correo.",
+        requiereVerificacion: true,
+        usuarioId: nuevoUsuario._id
+      })
+    } catch (err) {
+      console.error('Error al enviar código tras registro:', err)
+      return res.status(201).json({
+        mensaje: "Registro exitoso. No fue posible enviar el código de verificación — contacta al administrador.",
+        requiereVerificacion: true,
+        usuarioId: nuevoUsuario._id
+      })
+    }
   } catch (error) {
     console.error('Error en el registro:', error)
     return res.status(500).json({ mensaje: "Error interno al registrar usuario", error })
