@@ -33,11 +33,8 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
       console.log(` [LOGIN] Falló: Contraseña incorrecta para ${email}.`)
       return res.status(401).json({ mensaje: 'Contraseña incorrecta' })
     }
-    console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha iniciado sesión.`)
-
     if (!usuarioEncontrado.verificado) {
-      console.log(` [LOGIN] Bloqueado: ${email} no ha verificado su correo. Enviando código...`)
-      
+      console.log(` [LOGIN] Aviso: ${email} no ha verificado su correo. Permitido acceso temporalmente.`)
       try {
         await codigoService.procesarEnvioDeCodigo(
           usuarioEncontrado.email,
@@ -46,20 +43,9 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
           usuarioEncontrado._id.toString()
         )
       } catch (err) {
-        console.error('Error al enviar código de verificación durante login:', err)
-        // Respondemos 403 pero con mensaje más amable, evitando 500 por fallo externo (SMTP)
-        return res.status(403).json({
-          mensaje: 'Debes verificar tu correo antes de ingresar. No fue posible enviar el código de verificación — contacta al administrador.',
-          requiereVerificacion: true,
-          usuarioId: usuarioEncontrado._id
-        })
+        console.error('Error al enviar código de verificación durante login (no crítico):', err)
       }
-
-      return res.status(403).json({
-        mensaje: 'Debes verificar tu correo antes de ingresar. Te hemos enviado un nuevo código.',
-        requiereVerificacion: true,
-        usuarioId: usuarioEncontrado._id
-      })
+      // No se retorna aquí: permitimos login aunque no esté verificado (medida temporal)
     }
 
     console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha iniciado sesión.`)
