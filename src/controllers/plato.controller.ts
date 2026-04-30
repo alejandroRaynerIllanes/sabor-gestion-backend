@@ -2,6 +2,7 @@
 import { Request, Response } from 'express'
 import Plato from '../models/Plato.js'
 import { cloudinary } from '../configs/cloudinary.js'
+import { getIO } from '../socket/socket.js'
 
 // POST /api/platos
 export const crearPlato = async (req: Request, res: Response) => {
@@ -25,6 +26,14 @@ export const crearPlato = async (req: Request, res: Response) => {
     })
 
     await nuevoPlato.save()
+
+    try {
+      const io = getIO()
+      io.emit('platos:created', nuevoPlato)
+    } catch (err) {
+      console.warn('Socket.io no inicializado — omitiendo emisión de platos:created')
+    }
+
     res.status(201).json(nuevoPlato)
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al crear el plato', error })
@@ -84,6 +93,13 @@ export const actualizarPlato = async (req: Request, res: Response) => {
       { new: true, runValidators: true }
     )
 
+    try {
+      const io = getIO()
+      io.emit('platos:updated', platoActualizado)
+    } catch (err) {
+      console.warn('Socket.io no inicializado — omitiendo emisión de platos:updated')
+    }
+
     res.status(200).json(platoActualizado)
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al actualizar el plato', error })
@@ -105,6 +121,14 @@ export const eliminarPlato = async (req: Request, res: Response) => {
     }
 
     await plato.deleteOne()
+
+    try {
+      const io = getIO()
+      io.emit('platos:deleted', { id: plato._id })
+    } catch (err) {
+      console.warn('Socket.io no inicializado — omitiendo emisión de platos:deleted')
+    }
+
     res.status(200).json({ mensaje: 'Plato e imagen eliminados correctamente' })
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al eliminar el plato', error })
@@ -122,6 +146,13 @@ export const cambiarDisponibilidad = async (req: Request, res: Response) => {
 
     plato.disponible = !plato.disponible
     await plato.save()
+
+    try {
+      const io = getIO()
+      io.emit('platos:updated', plato)
+    } catch (err) {
+      console.warn('Socket.io no inicializado — omitiendo emisión de platos:updated (disponibilidad)')
+    }
 
     res.status(200).json({
       mensaje: `Plato marcado como ${plato.disponible ? 'disponible' : 'agotado'}`,
