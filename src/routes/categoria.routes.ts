@@ -1,6 +1,11 @@
 // src/routes/categoria.routes.ts
 import { Router } from 'express'
-import { crearCategoria, obtenerCategorias, actualizarCategoria, eliminarCategoria } from '../controllers/categoria.controller'
+import {
+  crearCategoria,
+  obtenerCategorias,
+  actualizarCategoria,
+  eliminarCategoria
+} from '../controllers/categoria.controller'
 
 // Importamos tus middlewares de seguridad
 import { verificarToken } from '../middlewares/auth.middleware'

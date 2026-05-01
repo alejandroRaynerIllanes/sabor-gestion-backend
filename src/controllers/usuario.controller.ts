@@ -1,8 +1,8 @@
 //src/controllers/usuario.controller.ts
-import { Request, Response } from 'express';
-import Usuario from '../models/Usuario';
-import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
+import { Request, Response } from 'express'
+import Usuario from '../models/Usuario'
+import bcrypt from 'bcryptjs'
+import mongoose from 'mongoose'
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {
@@ -65,9 +65,13 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
         estado: nuevoUsuario.estado
       }
     })
-  } catch (error) {
-    console.error('Error al crear usuario:', error)
-    res.status(500).json({ mensaje: 'Error al crear el usuario en el servidor' })
+  } catch (error: any) {
+    console.error('ERROR DETALLADO:', error)
+    res.status(500).json({
+      mensaje: 'Error en el servidor',
+      error: error.message, // Esto te dirá si es por el CI, el ROL o el EMAIL
+      stack: error.errors
+    })
   }
 }
 
@@ -78,6 +82,10 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
   try {
     const { id } = req.params
     const { nombre, apellido, ci, email, password, rol } = req.body
+
+    console.log(
+      `\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`
+    )
 
     // Buscar al usuario por ID
     let usuario = await Usuario.findById(id)
@@ -99,11 +107,17 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
       }
     }
 
-    // Preparar los datos a actualizar
-    const datosActualizados: any = { nombre, apellido, ci, email, rol }
+    // Preparar los datos a actualizar (solo incluir campos definidos)
+    const datosActualizados: any = {}
+    if (nombre !== undefined) datosActualizados.nombre = nombre
+    if (apellido !== undefined) datosActualizados.apellido = apellido
+    if (ci !== undefined) datosActualizados.ci = ci
+    if (email !== undefined) datosActualizados.email = email
+    if (rol !== undefined) datosActualizados.rol = rol
 
     // TRUCO: Solo actualizamos la contraseña si el frontend nos envió una nueva
-    if (password && password.trim() !== '') {
+    if (password && typeof password === 'string' && password.trim() !== '') {
+      console.log(`[USUARIO] Se solicitó cambio de contraseña para usuario id=${id}`)
       const salt = await bcrypt.genSalt(10)
       datosActualizados.password = await bcrypt.hash(password, salt)
     }
@@ -114,9 +128,11 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     }).select('-password')
 
     res.status(200).json({ mensaje: 'Usuario actualizado', usuario: usuarioActualizado })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error al actualizar:', error)
-    res.status(500).json({ mensaje: 'Error al actualizar el usuario' })
+    res
+      .status(500)
+      .json({ mensaje: 'Error al actualizar el usuario', error: error.message || error })
   }
 }
 

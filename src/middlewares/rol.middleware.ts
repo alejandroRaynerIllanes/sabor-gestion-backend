@@ -1,6 +1,6 @@
 //src/middlewares/rol.middleware.ts
-import { Response, NextFunction } from 'express';
-import { CustomRequest } from './auth.middleware';
+import { Response, NextFunction } from 'express'
+import { CustomRequest } from './auth.middleware'
 
 export const soloAdmins = (req: CustomRequest, res: Response, next: NextFunction): any => {
   // Verificamos el rol que sacamos del Token

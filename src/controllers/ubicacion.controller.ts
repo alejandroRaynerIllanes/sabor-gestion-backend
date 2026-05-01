@@ -1,64 +1,62 @@
-import { Request, Response } from 'express';
-import Ubicacion from '../models/Ubicacion';
-import Mesa from '../models/Mesa'; // Lo importamos para validar antes de eliminar
+import { Request, Response } from 'express'
+import Ubicacion from '../models/Ubicacion'
 
-// 1. Obtener todas las ubicaciones
-export const obtenerUbicaciones = async (req: Request, res: Response): Promise<any> => {
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export const obtenerUbicaciones = async (req: Request, res: Response) => {
   try {
-    const ubicaciones = await Ubicacion.find();
-    res.status(200).json(ubicaciones);
-  } catch (error) {
-    console.error('Error al obtener ubicaciones:', error);
-    res.status(500).json({ mensaje: 'Error al obtener las ubicaciones' });
+    const ubicaciones = await Ubicacion.find().sort({ nombre: 1 })
+    res
+      .status(200)
+      .json(ubicaciones.map((u) => ({ id: u._id, nombre: u.nombre || (u as any).name })))
+  } catch (error: any) {
+    res.status(500).json({ mensaje: 'Error al obtener ubicaciones', error: error.message || error })
   }
-};
+}
 
-// 2. Crear una nueva ubicación
-export const crearUbicacion = async (req: Request, res: Response): Promise<any> => {
+export const crearUbicacion = async (req: Request, res: Response) => {
   try {
-    const { nombre } = req.body;
-    const nuevaUbicacion = new Ubicacion({ nombre });
-    await nuevaUbicacion.save();
-    res.status(201).json(nuevaUbicacion);
-  } catch (error) {
-    console.error('Error al crear ubicación:', error);
-    res.status(500).json({ mensaje: 'Error al crear la ubicación' });
-  }
-};
+    const { nombre, name } = req.body
+    const finalName = (nombre || name || '').toString().trim()
+    if (!finalName) return res.status(400).json({ mensaje: 'Nombre de ubicación requerido' })
 
-// 3. Actualizar una ubicación
-export const actualizarUbicacion = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { id } = req.params;
-    const { nombre } = req.body;
-    const ubicacionActualizada = await Ubicacion.findByIdAndUpdate(
-      id,
-      { nombre },
-      { new: true }
-    );
-    if (!ubicacionActualizada) return res.status(404).json({ mensaje: 'Ubicación no encontrada' });
-    res.status(200).json(ubicacionActualizada);
-  } catch (error) {
-    console.error('Error al actualizar ubicación:', error);
-    res.status(500).json({ mensaje: 'Error al actualizar la ubicación' });
-  }
-};
-
-// 4. Eliminar una ubicación (Con protección si tiene mesas)
-export const eliminarUbicacion = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { id } = req.params;
-    
-    // Seguro: Verificar si hay mesas usando esta ubicación
-    const mesasAsociadas = await Mesa.findOne({ ubicacion: id });
-    if (mesasAsociadas) {
-      return res.status(400).json({ mensaje: 'No puedes eliminar esta ubicación porque tiene mesas asignadas.' });
+    // Evitar duplicados (case-insensitive) tanto en 'nombre' como en campo legacy 'name'
+    const regex = { $regex: `^${escapeRegex(finalName)}$`, $options: 'i' }
+    let existente
+    try {
+      existente = await Ubicacion.findOne({ $or: [{ nombre: regex }, { name: regex }] })
+    } catch (findErr: any) {
+      // Problema en la consulta (ej. construcción de regex inválido) -> devolver 400
+      return res
+        .status(400)
+        .json({ mensaje: 'Nombre de ubicación inválido', error: findErr.message || findErr })
     }
 
-    await Ubicacion.findByIdAndDelete(id);
-    res.status(200).json({ mensaje: 'Ubicación eliminada exitosamente' });
-  } catch (error) {
-    console.error('Error al eliminar ubicación:', error);
-    res.status(500).json({ mensaje: 'Error al eliminar la ubicación' });
+    if (existente)
+      return res.status(400).json({
+        mensaje: 'Ubicación ya existe',
+        ubicacion: { id: existente._id, nombre: existente.nombre || (existente as any).name }
+      })
+
+    try {
+      const nueva = new Ubicacion({ nombre: finalName, name: finalName })
+      await nueva.save()
+      res.status(201).json({ id: nueva._id, nombre: nueva.nombre || (nueva as any).name })
+    } catch (err: any) {
+      // Manejar duplicado por índice directamente (concurrency) y otros errores previsibles
+      if (err && (err.code === 11000 || (err.code && err.code === 11000))) {
+        return res.status(400).json({ mensaje: 'Ubicación ya existe (duplicada por índice)' })
+      }
+      // Si el error tiene keyValue/name problema, devolver 400 con detalle
+      if (err && err.keyValue) {
+        return res.status(400).json({ mensaje: 'Error creando ubicación', detalle: err.keyValue })
+      }
+      throw err
+    }
+  } catch (error: any) {
+    console.error('crearUbicacion error:', error)
+    res.status(500).json({ mensaje: 'Error al crear ubicacion', error: error.message || error })
   }
-};
+}
