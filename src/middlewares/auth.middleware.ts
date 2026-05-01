@@ -2,9 +2,15 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 
+// 1. Definimos la estructura exacta de nuestro Token
+export interface UsuarioTokenPayload {
+  id: string;
+  rol: string;
+}
+
 // Extendemos la interfaz Request de Express para que acepte nuestro usuario
 export interface CustomRequest extends Request {
-  usuario?: any
+  usuario?: UsuarioTokenPayload
 }
 
 export const verificarToken = (req: CustomRequest, res: Response, next: NextFunction): void | Response => {
@@ -25,7 +31,7 @@ export const verificarToken = (req: CustomRequest, res: Response, next: NextFunc
     }
 
     // 3. Verificar si el token es real y no ha expirado
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as UsuarioTokenPayload
 
     // 4. Guardar los datos del usuario en la petición para usarlos después
     req.usuario = decoded
