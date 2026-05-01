@@ -4,7 +4,22 @@ import Mesa from '../models/Mesa'
 
 export const crearPedido = async (req: Request, res: Response) => {
   try {
-    const nuevoPedido = new Pedido(req.body)
+    const ultimoPedido = await Pedido.findOne().sort({ createdAt: -1 })
+
+    let nuevoNumero = 1
+    if (ultimoPedido && ultimoPedido.codigo) {
+      const partes = ultimoPedido.codigo.split('-')
+      if (partes.length === 2) {
+        const numeroAnterior = parseInt(partes[1], 10)
+        if (!isNaN(numeroAnterior)) {
+          nuevoNumero = numeroAnterior + 1
+        }
+      }
+    }
+
+    const codigoGenerado = `PED-${nuevoNumero.toString().padStart(4, '0')}`
+
+    const nuevoPedido = new Pedido({ ...req.body, codigo: codigoGenerado })
     await nuevoPedido.save()
     res.status(201).json(nuevoPedido)
   } catch (error) {
