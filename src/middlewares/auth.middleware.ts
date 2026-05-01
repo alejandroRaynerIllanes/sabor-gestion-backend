@@ -7,7 +7,7 @@ export interface CustomRequest extends Request {
   usuario?: any
 }
 
-export const verificarToken = (req: CustomRequest, res: Response, next: NextFunction): any => {
+export const verificarToken = (req: CustomRequest, res: Response, next: NextFunction): void | Response => {
   try {
     // 1. Obtener el token del header (viene como "Bearer eyJhbGci...")
     const tokenHeader = req.header('Authorization')
@@ -20,8 +20,12 @@ export const verificarToken = (req: CustomRequest, res: Response, next: NextFunc
     // 2. Extraer solo el token (quitamos la palabra "Bearer ")
     const token = tokenHeader.split(' ')[1]
 
+    if (!process.env.JWT_SECRET) {
+      throw new Error('FATAL ERROR: JWT_SECRET no está configurado en el servidor.');
+    }
+
     // 3. Verificar si el token es real y no ha expirado
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secreto_temporal_de_desarrollo')
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
     // 4. Guardar los datos del usuario en la petición para usarlos después
     req.usuario = decoded

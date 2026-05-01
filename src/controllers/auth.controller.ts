@@ -32,10 +32,14 @@ export const loginUsuario = async (req: Request, res: Response): Promise<any> =>
     }
     console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha iniciado sesión.`)
 
+    if (!process.env.JWT_SECRET) {
+      throw new Error('FATAL ERROR: JWT_SECRET no está definido en las variables de entorno.');
+    }
+
     // 4. Generar el Token JWT
     const token = jwt.sign(
       { id: usuarioEncontrado._id, rol: usuarioEncontrado.rol },
-      process.env.JWT_SECRET || 'secreto_temporal_de_desarrollo',
+      process.env.JWT_SECRET,
       { expiresIn: '8h' }
     )
 
