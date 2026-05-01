@@ -42,6 +42,30 @@ const estadoFrontendToBackend = (status?: string): string | undefined => {
   return status
 }
 
+const validarNombreMesa = (nombre: string | undefined): { valido: boolean; mensaje?: string } => {
+  if (!nombre) return { valido: false, mensaje: 'El nombre de la mesa es requerido.' }
+  const nom = String(nombre).toLowerCase().trim()
+
+  const regexEspeciales = /^[a-záéíóúñ0-9\s]+$/i
+  if (!regexEspeciales.test(nom)) return { valido: false, mensaje: 'No se permiten símbolos especiales.' }
+  
+  if (!nom.includes('mesa')) return { valido: false, mensaje: 'El nombre debe incluir la palabra "mesa".' }
+  
+  const ubicaciones = ['interior', 'patio', 'terraza']
+  if (!ubicaciones.some((ub) => nom.includes(ub))) {
+    return { valido: false, mensaje: 'El nombre debe incluir una ubicación válida (interior, patio, terraza).' }
+  }
+  
+  const numeros = nom.match(/\d+/g)
+  if (numeros) {
+    for (const numStr of numeros) {
+      if (numStr.length > 3) return { valido: false, mensaje: 'No se permiten más de 3 dígitos numéricos consecutivos.' }
+      if (parseInt(numStr, 10) > 50) return { valido: false, mensaje: 'El número de mesa no puede ser mayor a 50.' }
+    }
+  }
+  return { valido: true }
+}
+
 /**
  * HELPER DE MAPEO ULTRA-COMPATIBLE
  * Soluciona el problema de visibilidad asegurando que el ID sea string
@@ -82,10 +106,18 @@ const mapMesa = (m: IMesaDocument | any) => {
   }
 }
 
-export const crearMesa = async (req: Request, res: Response) => {
+export const crearMesa = async (req: Request, res: Response): Promise<any> => {
   try {
     const body = req.body
     if (Array.isArray(body)) {
+      // Validar cada mesa en el array antes de procesar
+      for (const p of body) {
+        const validacion = validarNombreMesa(p.name || p.numero)
+        if (!validacion.valido) {
+          return res.status(400).json({ mensaje: validacion.mensaje })
+        }
+      }
+
       const input = body.map((p: IMesaPayload) => {
         const base: Record<string, any> = {
           numero: p.name || p.numero,
@@ -113,8 +145,14 @@ export const crearMesa = async (req: Request, res: Response) => {
       return res.status(201).json(mapped)
     }
 
+    const nombreIngresado = body.name || body.numero
+    const validacion = validarNombreMesa(nombreIngresado)
+    if (!validacion.valido) {
+      return res.status(400).json({ mensaje: validacion.mensaje })
+    }
+
     const mesaData: Record<string, any> = {
-      numero: body.name || body.numero,
+      numero: nombreIngresado,
       capacidad: body.capacity || body.capacidad,
       estado: estadoFrontendToBackend(body.status || body.estado) || 'Libre',
       tipo: body.type || 'normal'
@@ -169,13 +207,19 @@ export const obtenerMesaPorId = async (req: Request, res: Response) => {
   }
 }
 
-export const actualizarMesa = async (req: Request, res: Response) => {
+export const actualizarMesa = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params
     const body: IMesaPayload = req.body
     const update: Record<string, any> = {}
 
-    if (body.name !== undefined) update.numero = body.name
+    if (body.name !== undefined) {
+      const validacion = validarNombreMesa(body.name)
+      if (!validacion.valido) {
+        return res.status(400).json({ mensaje: validacion.mensaje })
+      }
+      update.numero = body.name
+    }
     if (body.capacity !== undefined) update.capacidad = body.capacity
 
     const loc = body.location || body.ubicacion

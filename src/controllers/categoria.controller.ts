@@ -25,7 +25,29 @@ export const obtenerCategorias = async (req: Request, res: Response) => {
 export const actualizarCategoria = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params
-    const categoriaActualizada = await Categoria.findByIdAndUpdate(id, req.body, { new: true })
+    const { nombre } = req.body
+
+    if (!nombre || nombre.trim() === '') {
+      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido' })
+    }
+
+    const regexValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (!regexValido.test(nombre)) {
+      return res.status(400).json({ 
+        mensaje: 'El nombre solo puede contener letras y espacios, sin números ni símbolos especiales.' 
+      })
+    }
+
+    const categoriaExistente = await Categoria.findOne({ 
+      nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') }, 
+      _id: { $ne: id } 
+    })
+    
+    if (categoriaExistente) {
+      return res.status(400).json({ mensaje: 'Ya existe otra categoría con ese nombre' })
+    }
+
+    const categoriaActualizada = await Categoria.findByIdAndUpdate(id, { nombre: nombre.trim() }, { new: true })
 
     if (!categoriaActualizada) {
       return res.status(404).json({ mensaje: 'Categoría no encontrada' })
