@@ -2,9 +2,30 @@
 import { Request, Response } from 'express'
 import Categoria from '../models/Categoria'
 
-export const crearCategoria = async (req: Request, res: Response) => {
+export const crearCategoria = async (req: Request, res: Response): Promise<any> => {
   try {
-    const nuevaCategoria = new Categoria(req.body)
+    const { nombre } = req.body
+
+    if (!nombre || nombre.trim() === '') {
+      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido' })
+    }
+
+    const regexValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (!regexValido.test(nombre)) {
+      return res.status(400).json({ 
+        mensaje: 'El nombre solo puede contener letras y espacios, sin números ni símbolos especiales.' 
+      })
+    }
+
+    const categoriaExistente = await Categoria.findOne({ 
+      nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
+    })
+    
+    if (categoriaExistente) {
+      return res.status(400).json({ mensaje: 'Ya existe una categoría con ese nombre' })
+    }
+
+    const nuevaCategoria = new Categoria({ ...req.body, nombre: nombre.trim() })
     await nuevaCategoria.save()
     res.status(201).json(nuevaCategoria)
   } catch (error) {
