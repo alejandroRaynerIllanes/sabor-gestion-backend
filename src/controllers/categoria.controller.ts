@@ -7,13 +7,13 @@ export const crearCategoria = async (req: Request, res: Response): Promise<any> 
     const { nombre } = req.body
 
     if (!nombre || nombre.trim() === '') {
-      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido' })
+      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido. Ejemplo: "Bebidas"' })
     }
 
     const regexValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
     if (!regexValido.test(nombre)) {
       return res.status(400).json({ 
-        mensaje: 'El nombre solo puede contener letras y espacios, sin números ni símbolos especiales.' 
+        mensaje: 'El nombre solo debe contener letras y espacios. Ejemplo: "Postres"' 
       })
     }
 
@@ -49,13 +49,13 @@ export const actualizarCategoria = async (req: Request, res: Response): Promise<
     const { nombre } = req.body
 
     if (!nombre || nombre.trim() === '') {
-      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido' })
+      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido. Ejemplo: "Bebidas"' })
     }
 
     const regexValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
     if (!regexValido.test(nombre)) {
       return res.status(400).json({ 
-        mensaje: 'El nombre solo puede contener letras y espacios, sin números ni símbolos especiales.' 
+        mensaje: 'El nombre solo debe contener letras y espacios. Ejemplo: "Postres"' 
       })
     }
 
