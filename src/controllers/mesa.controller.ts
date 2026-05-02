@@ -66,6 +66,10 @@ const validarNombreMesa = (nombre: string | undefined): { valido: boolean; mensa
   return { valido: true }
 }
 
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /**
  * HELPER DE MAPEO ULTRA-COMPATIBLE
  * Soluciona el problema de visibilidad asegurando que el ID sea string
@@ -112,9 +116,16 @@ export const crearMesa = async (req: Request, res: Response): Promise<any> => {
     if (Array.isArray(body)) {
       // Validar cada mesa en el array antes de procesar
       for (const p of body) {
-        const validacion = validarNombreMesa(p.name || p.numero)
+        const nombreMesa = p.name || p.numero
+        const validacion = validarNombreMesa(nombreMesa)
         if (!validacion.valido) {
           return res.status(400).json({ mensaje: validacion.mensaje })
+        }
+        
+        const regexNombre = new RegExp(`^${escapeRegex((nombreMesa || '').trim())}$`, 'i')
+        const existente = await Mesa.findOne({ numero: regexNombre })
+        if (existente) {
+          return res.status(400).json({ mensaje: `El nombre de la mesa '${nombreMesa}' ya está en uso. Intenta con otro nombre.` })
         }
       }
 
@@ -149,6 +160,12 @@ export const crearMesa = async (req: Request, res: Response): Promise<any> => {
     const validacion = validarNombreMesa(nombreIngresado)
     if (!validacion.valido) {
       return res.status(400).json({ mensaje: validacion.mensaje })
+    }
+    
+    const regexNombre = new RegExp(`^${escapeRegex((nombreIngresado || '').trim())}$`, 'i')
+    const existente = await Mesa.findOne({ numero: regexNombre })
+    if (existente) {
+      return res.status(400).json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
     }
 
     const mesaData: Record<string, any> = {
@@ -218,7 +235,13 @@ export const actualizarMesa = async (req: Request, res: Response): Promise<any> 
       if (!validacion.valido) {
         return res.status(400).json({ mensaje: validacion.mensaje })
       }
-      update.numero = body.name
+      
+      const regexNombre = new RegExp(`^${escapeRegex((body.name || '').trim())}$`, 'i')
+      const existente = await Mesa.findOne({ numero: regexNombre, _id: { $ne: id } })
+      if (existente) {
+        return res.status(400).json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
+      }
+      update.numero = body.name.trim()
     }
     if (body.capacity !== undefined) update.capacidad = body.capacity
 
