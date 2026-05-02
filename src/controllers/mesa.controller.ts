@@ -1,32 +1,58 @@
 import { Request, Response } from 'express'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
+import mongoose from 'mongoose'
 
-// Mapeos entre estados DB <-> frontend
+// Mapeos de estados para compatibilidad con el Frontend
 const estadoBackendToFrontend = (estado: string | undefined) => {
   if (!estado) return 'Disponible'
   if (estado === 'Libre') return 'Disponible'
   if (estado === 'Cuenta Solicitada') return 'Esperando pago'
-  return estado // 'Ocupada', 'Reservada'
+  return estado
 }
 
 const estadoFrontendToBackend = (status: string | undefined) => {
   if (!status) return undefined
   if (status === 'Disponible') return 'Libre'
   if (status === 'Esperando pago') return 'Cuenta Solicitada'
-  return status // 'Ocupada', 'Reservada'
+  return status
 }
 
-// Helper: mapear documento de Mongo a formato esperado por el frontend
+/**
+ * HELPER DE MAPEO ULTRA-COMPATIBLE
+ * Soluciona el problema de visibilidad asegurando que el ID sea string
+ * y que la ubicación siempre tenga un valor coherente.
+ */
 const mapMesa = (m: any) => {
   if (!m) return null
+
+  // 1. Extraer el nombre de la ubicación (prioridad a la relación poblada)
+  let locationName = ''
+  if (m.ubicacionId && typeof m.ubicacionId === 'object') {
+    locationName = m.ubicacionId.nombre || m.ubicacionId.name || ''
+  }
+
+  // 2. Si no hay relación, usar el campo de texto legacy
+  if (!locationName) {
+    locationName = m.ubicacion || ''
+  }
+
   return {
-    id: m._id,
-    name: m.numero || m.name || '',
-    capacity: m.capacidad ?? m.capacity ?? 0,
-    location: m.ubicacion || m.location || '',
-    status: estadoBackendToFrontend(m.estado || m.status),
-    type: m.tipo || m.type || 'normal',
+    // IMPORTANTE: Convertimos a string para solucionar el Warning de las "keys"
+    id: m._id.toString(),
+    _id: m._id.toString(),
+
+    // Mapeo de propiedades para el Frontend
+    name: m.numero || '',
+    numero: m.numero || '', // Enviamos ambos por si el front usa uno u otro
+    capacity: m.capacidad ?? 0,
+
+    // La ubicación es crítica para el filtro de pestañas del front
+    location: locationName,
+    locationId: m.ubicacionId?._id?.toString() || m.ubicacionId?.toString() || null,
+
+    status: estadoBackendToFrontend(m.estado),
+    type: m.tipo || 'normal',
     createdAt: m.createdAt,
     updatedAt: m.updatedAt
   }
@@ -35,35 +61,52 @@ const mapMesa = (m: any) => {
 export const crearMesa = async (req: Request, res: Response) => {
   try {
     const body = req.body
-
-    // Si mandas un array [{}], normalizamos y usamos insertMany
     if (Array.isArray(body)) {
-      const input = body.map((p: any) => ({
-        numero: p.name || p.numero,
-        capacidad: p.capacity || p.capacidad,
-        ubicacion: p.location || p.ubicacion,
-        estado: estadoFrontendToBackend(p.status || p.estado) || 'Libre',
-        tipo: p.type || p.tipo || 'normal'
-      }))
+      const input = body.map((p: any) => {
+        const base: any = {
+          numero: p.name || p.numero,
+          capacidad: p.capacity || p.capacidad,
+          estado: estadoFrontendToBackend(p.status || p.estado) || 'Libre',
+          tipo: p.type || p.tipo || 'normal'
+        }
+        const loc = p.location || p.ubicacion
+        if (loc && mongoose.Types.ObjectId.isValid(String(loc))) base.ubicacionId = loc
+        else base.ubicacion = loc
+        return base
+      })
 
       const nuevasMesas = await Mesa.insertMany(input)
-      const mapped = nuevasMesas.map(mapMesa)
+      const pobladas = await Mesa.find({
+        _id: { $in: nuevasMesas.map((m: any) => m._id) }
+      }).populate('ubicacionId', 'nombre')
+      const mapped = pobladas.map(mapMesa)
+
       try {
         getIO().emit('mesas:created', mapped)
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Socket error', e)
+      }
       return res.status(201).json(mapped)
     }
 
-    const nuevaMesa = new Mesa({
+    const mesaData: any = {
       numero: body.name || body.numero,
       capacidad: body.capacity || body.capacidad,
-      ubicacion: body.location || body.ubicacion,
       estado: estadoFrontendToBackend(body.status || body.estado) || 'Libre',
       tipo: body.type || body.tipo || 'normal'
-    })
+    }
 
+    const loc = body.location || body.ubicacion
+    if (loc !== undefined) {
+      if (mongoose.Types.ObjectId.isValid(String(loc))) mesaData.ubicacionId = loc
+      else mesaData.ubicacion = loc
+    }
+
+    const nuevaMesa = new Mesa(mesaData)
     await nuevaMesa.save()
-    const mapped = mapMesa(nuevaMesa)
+    const nuevaMesaPoblada = await Mesa.findById(nuevaMesa._id).populate('ubicacionId', 'nombre')
+    const mapped = mapMesa(nuevaMesaPoblada)
+
     try {
       getIO().emit('mesas:created', mapped)
     } catch (e) {}
@@ -75,15 +118,15 @@ export const crearMesa = async (req: Request, res: Response) => {
 
 export const obtenerMesas = async (req: Request, res: Response) => {
   try {
-    const { location } = req.query // Extraemos el parámetro 'location' de la URL
+    const { location } = req.query
     let filtro: any = {}
 
-    // Si el usuario envía una ubicación, filtramos. Ej: ?location=Terraza
     if (location) {
-      filtro = { ubicacion: location }
+      if (mongoose.Types.ObjectId.isValid(String(location))) filtro = { ubicacionId: location }
+      else filtro = { ubicacion: location }
     }
 
-    const mesas = await Mesa.find(filtro)
+    const mesas = await Mesa.find(filtro).populate('ubicacionId', 'nombre')
     res.status(200).json(mesas.map(mapMesa))
   } catch (error: any) {
     res.status(500).json({ mensaje: 'Error al obtener las mesas', error: error.message || error })
@@ -93,7 +136,7 @@ export const obtenerMesas = async (req: Request, res: Response) => {
 export const obtenerMesaPorId = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const mesa = await Mesa.findById(id)
+    const mesa = await Mesa.findById(id).populate('ubicacionId', 'nombre')
     if (!mesa) return res.status(404).json({ mensaje: 'Mesa no encontrada' })
     res.status(200).json(mapMesa(mesa))
   } catch (error: any) {
@@ -105,16 +148,31 @@ export const actualizarMesa = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
     const body = req.body
-
     const update: any = {}
+
     if (body.name !== undefined) update.numero = body.name
     if (body.capacity !== undefined) update.capacidad = body.capacity
-    if (body.location !== undefined) update.ubicacion = body.location
+
+    const loc = body.location || body.ubicacion
+    if (loc !== undefined) {
+      if (mongoose.Types.ObjectId.isValid(String(loc))) {
+        update.ubicacionId = loc
+        update.ubicacion = undefined
+      } else {
+        update.ubicacion = loc
+        update.ubicacionId = null
+      }
+    }
+
     if (body.status !== undefined) update.estado = estadoFrontendToBackend(body.status)
     if (body.type !== undefined) update.tipo = body.type
 
-    const mesaActualizada = await Mesa.findByIdAndUpdate(id, update, { new: true })
+    const mesaActualizada = await Mesa.findByIdAndUpdate(id, update, { new: true }).populate(
+      'ubicacionId',
+      'nombre'
+    )
     if (!mesaActualizada) return res.status(404).json({ mensaje: 'Mesa no encontrada' })
+
     const mapped = mapMesa(mesaActualizada)
     try {
       getIO().emit('mesas:updated', mapped)
@@ -128,19 +186,20 @@ export const actualizarMesa = async (req: Request, res: Response) => {
 export const actualizarEstadoMesa = async (req: Request, res: Response) => {
   try {
     const { id } = req.params
-    const { estado } = req.body // El cliente manda el nuevo estado: 'Libre', 'Ocupada', etc.
+    const { estado } = req.body
+    const backendStatus = estadoFrontendToBackend(estado) || estado
 
-    const mesaActualizada = await Mesa.findByIdAndUpdate(id, { estado }, { new: true })
-
-    if (!mesaActualizada) {
-      return res.status(404).json({ mensaje: 'Mesa no encontrada' })
-    }
+    const mesaActualizada = await Mesa.findByIdAndUpdate(
+      id,
+      { estado: backendStatus },
+      { new: true }
+    ).populate('ubicacionId', 'nombre')
+    if (!mesaActualizada) return res.status(404).json({ mensaje: 'Mesa no encontrada' })
 
     const mapped = mapMesa(mesaActualizada)
     try {
       getIO().emit('mesas:updated', mapped)
     } catch (e) {}
-
     res.status(200).json(mapped)
   } catch (error: any) {
     res.status(500).json({ mensaje: 'Error al actualizar estado', error: error.message || error })
