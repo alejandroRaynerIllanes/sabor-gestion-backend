@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose'
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IMesa extends Document {
   numero: string
@@ -27,6 +27,6 @@ const MesaSchema = new Schema(
     timestamps: true,
     versionKey: false
   }
-)
+);
 
-export default mongoose.model<IMesa>('Mesa', MesaSchema)
+export default mongoose.model<IMesa>('Mesa', MesaSchema);

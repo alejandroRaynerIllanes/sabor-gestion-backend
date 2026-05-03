@@ -27,6 +27,14 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       })
     }
 
+    if (!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(nombreCliente)) {
+      return res.status(400).json({ mensaje: 'El nombre del cliente solo debe contener letras. Ejemplo: "Maria Lopez"' })
+    }
+
+    if (cantidadPersonas < 1 || cantidadPersonas > 20) {
+      return res.status(400).json({ mensaje: 'El número de personas debe estar entre 1 y 20.' })
+    }
+
     if (!mongoose.Types.ObjectId.isValid(mesaId)) {
       return res.status(400).json({ mensaje: 'El id de la mesa no es válido.' })
     }
