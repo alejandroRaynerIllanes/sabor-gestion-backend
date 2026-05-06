@@ -1,3 +1,4 @@
+//src/controllers/pago.controller.ts
 import { Request, Response } from 'express'
 import Pedido from '../models/Pedido'
 

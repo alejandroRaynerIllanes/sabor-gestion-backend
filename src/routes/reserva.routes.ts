@@ -1,3 +1,4 @@
+//src/routes/reserva.routes.ts
 import { Router } from 'express'
 import { crearReserva, obtenerReservas } from '../controllers/reserva.controller'
 import { verificarToken } from '../middlewares/auth.middleware'

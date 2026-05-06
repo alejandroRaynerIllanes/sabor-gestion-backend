@@ -1,3 +1,4 @@
+//src/repositories/codigo-verificacion.repo.ts
 import CodigoVerificacion, { ICodigoVerificacion } from '../models/CodigoVerificacion'
 
 export class CodigoVerificacionRepository {

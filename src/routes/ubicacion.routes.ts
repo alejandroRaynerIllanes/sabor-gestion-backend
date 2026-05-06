@@ -1,3 +1,4 @@
+//src/routes/ubicacion.routes.ts
 import { Router } from 'express'
 import { obtenerUbicaciones, crearUbicacion } from '../controllers/ubicacion.controller'
 import { verificarToken } from '../middlewares/auth.middleware'

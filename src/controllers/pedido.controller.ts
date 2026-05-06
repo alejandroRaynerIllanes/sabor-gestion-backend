@@ -1,3 +1,4 @@
+//src/controllers/pedido.controller.ts
 import { Request, Response } from 'express'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
