@@ -1,4 +1,3 @@
-//src/controllers/reserva.controller.ts
 import { Response } from 'express'
 import mongoose from 'mongoose'
 import Reserva from '../models/Reserva'
@@ -121,5 +120,40 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
   } catch (error) {
     console.error('Error al obtener las reservas:', error)
     return res.status(500).json({ mensaje: 'Error al obtener las reservas', error })
+  }
+}
+
+export const eliminarReserva = async (req: CustomRequest, res: Response) => {
+  try {
+    const id = String(req.params.id)
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ mensaje: 'El id de la reserva no es válido.' })
+    }
+
+    const reserva = await Reserva.findById(id)
+
+    if (!reserva) {
+      return res.status(404).json({ mensaje: 'Reserva no encontrada.' })
+    }
+
+    const mesaId = reserva.mesa
+
+    await Reserva.findByIdAndDelete(id)
+
+    const reservasRestantes = await Reserva.countDocuments({ mesa: mesaId })
+
+    if (reservasRestantes === 0) {
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
+    } else {
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+    }
+
+    return res.status(200).json({
+      mensaje: 'Reserva eliminada correctamente.'
+    })
+  } catch (error) {
+    console.error('Error al eliminar la reserva:', error)
+    return res.status(500).json({ mensaje: 'Error al eliminar la reserva', error })
   }
 }
