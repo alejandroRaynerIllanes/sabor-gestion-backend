@@ -47,34 +47,6 @@ const estadoFrontendToBackend = (status: string | undefined): string | undefined
   return status
 }
 
-const validarNombreMesa = (nombre: string | undefined): { valido: boolean; mensaje?: string } => {
-  if (!nombre) return { valido: false, mensaje: 'El nombre de la mesa es requerido.' }
-  const nom = String(nombre).toLowerCase().trim()
-
-  const regexEspeciales = /^[a-záéíóúñ0-9\s]+$/i
-  if (!regexEspeciales.test(nom)) return { valido: false, mensaje: 'No se permiten símbolos especiales.' }
-  
-  if (!nom.includes('mesa')) return { valido: false, mensaje: 'El nombre debe incluir la palabra "mesa".' }
-  
-  const ubicaciones = ['interior', 'patio', 'terraza']
-  if (!ubicaciones.some((ub) => nom.includes(ub))) {
-    return { valido: false, mensaje: 'El nombre debe incluir una ubicación válida (interior, patio, terraza).' }
-  }
-  
-  const numeros = nom.match(/\d+/g)
-  if (numeros) {
-    for (const numStr of numeros) {
-      if (numStr.length > 3) return { valido: false, mensaje: 'No se permiten más de 3 dígitos numéricos consecutivos.' }
-      if (parseInt(numStr, 10) > 50) return { valido: false, mensaje: 'El número de mesa no puede ser mayor a 50.' }
-    }
-  }
-  return { valido: true }
-}
-
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 const mapMesa = (m: MesaPoblada | null) => {
   if (!m) return null
 
@@ -126,7 +98,7 @@ export const crearMesa = async (req: Request, res: Response): Promise<void> => {
           numero: p.name || p.numero,
           capacidad: p.capacity || p.capacidad,
           estado: estadoFrontendToBackend(p.status || p.estado) || 'Libre',
-          tipo: p.type || 'normal'
+          tipo: p.type || p.tipo || 'normal'
         }
         
         const loc = p.location || p.ubicacion
@@ -160,7 +132,7 @@ export const crearMesa = async (req: Request, res: Response): Promise<void> => {
       numero: body.name || body.numero,
       capacidad: body.capacity || body.capacidad,
       estado: estadoFrontendToBackend(body.status || body.estado) || 'Libre',
-      tipo: body.type || 'normal'
+      tipo: body.type || body.tipo || 'normal'
     }
 
     const loc = body.location || body.ubicacion
@@ -187,7 +159,7 @@ export const crearMesa = async (req: Request, res: Response): Promise<void> => {
     const err = error as Error;
     res.status(500).json({ mensaje: 'Error al crear la mesa', error: err.message || err })
   }
-};
+}
 
 export const obtenerMesas = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -233,19 +205,7 @@ export const actualizarMesa = async (req: Request, res: Response): Promise<void>
     const body: MesaPayload = req.body
    const update: Record<string, any> = {}
 
-    if (body.name !== undefined) {
-      const validacion = validarNombreMesa(body.name)
-      if (!validacion.valido) {
-        return res.status(400).json({ mensaje: validacion.mensaje })
-      }
-      
-      const regexNombre = new RegExp(`^${escapeRegex((body.name || '').trim())}$`, 'i')
-      const existente = await Mesa.findOne({ numero: regexNombre, _id: { $ne: id } })
-      if (existente) {
-        return res.status(400).json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
-      }
-      update.numero = body.name.trim()
-    }
+    if (body.name !== undefined) update.numero = body.name
     if (body.capacity !== undefined) update.capacidad = body.capacity
 
     const loc = body.location || body.ubicacion
