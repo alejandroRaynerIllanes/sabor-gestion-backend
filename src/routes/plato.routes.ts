@@ -1,3 +1,4 @@
+//src/routes/plato.routes.ts
 import { Router } from 'express'
 import {
   crearPlato,

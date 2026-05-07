@@ -9,4 +9,3 @@ router.get('/', verificarToken, obtenerReservas)
 router.delete('/:id', verificarToken, eliminarReserva)
 
 export default router
-

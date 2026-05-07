@@ -1,3 +1,4 @@
+//src/routes/upload.routes.ts
 import { Router } from 'express'
 import { subirImagen } from '../controllers/upload.controller'
 import { upload } from '../configs/cloudinary' // Importamos tu multer configurado

@@ -13,7 +13,7 @@ import platoRoutes from './routes/plato.routes'
 import reservaRoutes from './routes/reserva.routes'
 import pedidoRoutes from './routes/pedido.routes'
 import pagoRoutes from './routes/pago.routes'
-
+import dashboardRoutes from './routes/dashboard.routes';
 // Importamos la ruta de tus cambios locales
 import uploadRouters from './routes/upload.routes.js'
 
@@ -48,7 +48,7 @@ app.use('/api/platos', platoRoutes)
 app.use('/api/reservas', reservaRoutes)
 app.use('/api/pedidos', pedidoRoutes)
 app.use('/api/pago', pagoRoutes)
-
+app.use('/api/dashboard', dashboardRoutes);
 // Health check / Ruta de prueba
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({

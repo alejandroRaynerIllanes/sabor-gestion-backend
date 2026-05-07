@@ -1,3 +1,4 @@
+//src/controllers/upload.controller.ts
 import { Request, Response } from 'express'
 import { uploadToCloudinary } from '../configs/cloudinary'
 
