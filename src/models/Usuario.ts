@@ -25,7 +25,8 @@ const UsuarioSchema = new Schema(
       required: true
     },
     estado: { type: Boolean, default: true }, // Por defecto un usuario nuevo está activo
-verificado: { type: Boolean, default: true }  },
+    verificado: { type: Boolean, default: true }
+  },
   {
     timestamps: true,
     versionKey: false

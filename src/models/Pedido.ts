@@ -54,10 +54,10 @@ const PedidoSchema = new Schema(
     qrUrl: { type: String, required: false },
 
     // Información del pago final (Texto plano para simulación)
-    metodoPago: { 
-      type: String, 
+    metodoPago: {
+      type: String,
       enum: ['Efectivo', 'Tarjeta', 'Transferencia', 'QR', 'Otro'],
-      required: false 
+      required: false
     },
     montoDescuento: { type: Number, default: 0 },
     montoPropina: { type: Number, default: 0 },

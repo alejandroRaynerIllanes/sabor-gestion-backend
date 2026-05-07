@@ -1,6 +1,11 @@
 //src/routes/ubicacion.routes.ts
 import { Router } from 'express'
-import { obtenerUbicaciones, crearUbicacion, actualizarUbicacion, eliminarUbicacion } from '../controllers/ubicacion.controller'
+import {
+  obtenerUbicaciones,
+  crearUbicacion,
+  actualizarUbicacion,
+  eliminarUbicacion
+} from '../controllers/ubicacion.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
 import { soloAdmins } from '../middlewares/rol.middleware'
 

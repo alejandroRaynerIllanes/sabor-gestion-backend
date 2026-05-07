@@ -22,4 +22,4 @@ router.patch('/:id/estado', verificarToken, actualizarEstadoMesa)
 // Eliminar mesa (solo admin)
 router.delete('/:id', verificarToken, soloAdmins, eliminarMesa)
 
-export default router;
+export default router

@@ -4,8 +4,8 @@ import jwt from 'jsonwebtoken'
 
 // 1. Definimos la estructura exacta de nuestro Token
 export interface UsuarioTokenPayload {
-  id: string;
-  rol: string;
+  id: string
+  rol: string
 }
 
 // Extendemos la interfaz Request de Express para que acepte nuestro usuario
@@ -13,7 +13,11 @@ export interface CustomRequest extends Request {
   usuario?: UsuarioTokenPayload
 }
 
-export const verificarToken = (req: CustomRequest, res: Response, next: NextFunction): void | Response => {
+export const verificarToken = (
+  req: CustomRequest,
+  res: Response,
+  next: NextFunction
+): void | Response => {
   try {
     // 1. Obtener el token del header (viene como "Bearer eyJhbGci...")
     const tokenHeader = req.header('Authorization')
@@ -27,7 +31,7 @@ export const verificarToken = (req: CustomRequest, res: Response, next: NextFunc
     const token = tokenHeader.split(' ')[1]
 
     if (!process.env.JWT_SECRET) {
-      throw new Error('FATAL ERROR: JWT_SECRET no está configurado en el servidor.');
+      throw new Error('FATAL ERROR: JWT_SECRET no está configurado en el servidor.')
     }
 
     // 3. Verificar si el token es real y no ha expirado

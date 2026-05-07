@@ -52,20 +52,27 @@ const validarNombreMesa = (nombre: string | undefined): { valido: boolean; mensa
   const nom = String(nombre).toLowerCase().trim()
 
   const regexEspeciales = /^[a-záéíóúñ0-9\s]+$/i
-  if (!regexEspeciales.test(nom)) return { valido: false, mensaje: 'No se permiten símbolos especiales.' }
-  
-  if (!nom.includes('mesa')) return { valido: false, mensaje: 'El nombre debe incluir la palabra "mesa".' }
-  
+  if (!regexEspeciales.test(nom))
+    return { valido: false, mensaje: 'No se permiten símbolos especiales.' }
+
+  if (!nom.includes('mesa'))
+    return { valido: false, mensaje: 'El nombre debe incluir la palabra "mesa".' }
+
   const ubicaciones = ['interior', 'patio', 'terraza']
   if (!ubicaciones.some((ub) => nom.includes(ub))) {
-    return { valido: false, mensaje: 'El nombre debe incluir una ubicación válida (interior, patio, terraza).' }
+    return {
+      valido: false,
+      mensaje: 'El nombre debe incluir una ubicación válida (interior, patio, terraza).'
+    }
   }
-  
+
   const numeros = nom.match(/\d+/g)
   if (numeros) {
     for (const numStr of numeros) {
-      if (numStr.length > 3) return { valido: false, mensaje: 'No se permiten más de 3 dígitos numéricos consecutivos.' }
-      if (parseInt(numStr, 10) > 50) return { valido: false, mensaje: 'El número de mesa no puede ser mayor a 50.' }
+      if (numStr.length > 3)
+        return { valido: false, mensaje: 'No se permiten más de 3 dígitos numéricos consecutivos.' }
+      if (parseInt(numStr, 10) > 50)
+        return { valido: false, mensaje: 'El número de mesa no puede ser mayor a 50.' }
     }
   }
   return { valido: true }
@@ -79,10 +86,14 @@ const mapMesa = (m: MesaPoblada | null) => {
   if (!m) return null
 
   let locationName = ''
-  
+
   // Validamos si ubicacionId es un objeto poblado (tiene propiedad 'nombre' o 'name')
-  if (m.ubicacionId && typeof m.ubicacionId === 'object' && !((m.ubicacionId instanceof mongoose.Types.ObjectId))) {
-    const loc = m.ubicacionId as PopulatedUbicacion;
+  if (
+    m.ubicacionId &&
+    typeof m.ubicacionId === 'object' &&
+    !(m.ubicacionId instanceof mongoose.Types.ObjectId)
+  ) {
+    const loc = m.ubicacionId as PopulatedUbicacion
     locationName = loc.nombre || loc.name || ''
   }
 
@@ -91,23 +102,30 @@ const mapMesa = (m: MesaPoblada | null) => {
   }
 
   // Extraemos el ID como string asegurándonos del tipado
-  const ubicacionRef = m.ubicacionId as PopulatedUbicacion | mongoose.Types.ObjectId | undefined | null;
+  const ubicacionRef = m.ubicacionId as
+    | PopulatedUbicacion
+    | mongoose.Types.ObjectId
+    | undefined
+    | null
 
   return {
     // Usamos String() en lugar de .toString() para evitar el choque de tipos
     id: String(m._id),
     _id: String(m._id),
-    
+
     name: m.numero || '',
-    numero: m.numero || '', 
+    numero: m.numero || '',
     capacity: m.capacidad ?? 0,
     location: locationName,
-    
+
     // También aplicamos String() aquí
-    locationId: ubicacionRef && typeof ubicacionRef === 'object' && '_id' in ubicacionRef 
-                ? String(ubicacionRef._id) 
-                : ubicacionRef ? String(ubicacionRef) : null,
-                
+    locationId:
+      ubicacionRef && typeof ubicacionRef === 'object' && '_id' in ubicacionRef
+        ? String(ubicacionRef._id)
+        : ubicacionRef
+          ? String(ubicacionRef)
+          : null,
+
     status: estadoBackendToFrontend(m.estado),
     type: m.tipo || 'normal',
     createdAt: m.createdAt,
@@ -118,7 +136,7 @@ const mapMesa = (m: MesaPoblada | null) => {
 export const crearMesa = async (req: Request, res: Response): Promise<void> => {
   try {
     const body = req.body
-    
+
     // Si envían un array de mesas
     if (Array.isArray(body)) {
       const input = body.map((p: MesaPayload) => {
@@ -128,22 +146,22 @@ export const crearMesa = async (req: Request, res: Response): Promise<void> => {
           estado: estadoFrontendToBackend(p.status || p.estado) || 'Libre',
           tipo: p.type || 'normal'
         }
-        
+
         const loc = p.location || p.ubicacion
         if (loc && mongoose.Types.ObjectId.isValid(String(loc))) {
-            base.ubicacionId = new mongoose.Types.ObjectId(String(loc))
+          base.ubicacionId = new mongoose.Types.ObjectId(String(loc))
         } else if (loc) {
-            base.ubicacion = String(loc)
+          base.ubicacion = String(loc)
         }
         return base
       })
 
       const nuevasMesas = await Mesa.insertMany(input)
-      
-      const pobladas = await Mesa.find({
-        _id: { $in: nuevasMesas.map(m => m._id) }
-      }).populate('ubicacionId', 'nombre') as MesaPoblada[]
-      
+
+      const pobladas = (await Mesa.find({
+        _id: { $in: nuevasMesas.map((m) => m._id) }
+      }).populate('ubicacionId', 'nombre')) as MesaPoblada[]
+
       const mapped = pobladas.map(mapMesa)
 
       try {
@@ -152,7 +170,7 @@ export const crearMesa = async (req: Request, res: Response): Promise<void> => {
         console.warn('Socket error', e)
       }
       res.status(201).json(mapped)
-      return;
+      return
     }
 
     // Si envían una sola mesa
@@ -166,28 +184,31 @@ export const crearMesa = async (req: Request, res: Response): Promise<void> => {
     const loc = body.location || body.ubicacion
     if (loc !== undefined) {
       if (mongoose.Types.ObjectId.isValid(String(loc))) {
-          mesaData.ubicacionId = new mongoose.Types.ObjectId(String(loc))
+        mesaData.ubicacionId = new mongoose.Types.ObjectId(String(loc))
       } else {
-          mesaData.ubicacion = String(loc)
+        mesaData.ubicacion = String(loc)
       }
     }
 
     const nuevaMesa = new Mesa(mesaData)
     await nuevaMesa.save()
-    
-    const nuevaMesaPoblada = await Mesa.findById(nuevaMesa._id).populate('ubicacionId', 'nombre') as MesaPoblada
+
+    const nuevaMesaPoblada = (await Mesa.findById(nuevaMesa._id).populate(
+      'ubicacionId',
+      'nombre'
+    )) as MesaPoblada
     const mapped = mapMesa(nuevaMesaPoblada)
 
     try {
       getIO().emit('mesas:created', mapped)
     } catch (e) {}
-    
+
     res.status(201).json(mapped)
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al crear la mesa', error: err.message || err })
   }
-};
+}
 
 export const obtenerMesas = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -196,16 +217,16 @@ export const obtenerMesas = async (req: Request, res: Response): Promise<void> =
 
     if (location) {
       if (mongoose.Types.ObjectId.isValid(String(location))) {
-          filtro = { ubicacionId: location }
+        filtro = { ubicacionId: location }
       } else {
-          filtro = { ubicacion: location }
+        filtro = { ubicacion: location }
       }
     }
 
-    const mesas = await Mesa.find(filtro).populate('ubicacionId', 'nombre') as MesaPoblada[]
+    const mesas = (await Mesa.find(filtro).populate('ubicacionId', 'nombre')) as MesaPoblada[]
     res.status(200).json(mesas.map(mapMesa))
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al obtener las mesas', error: err.message || err })
   }
 }
@@ -213,16 +234,16 @@ export const obtenerMesas = async (req: Request, res: Response): Promise<void> =
 export const obtenerMesaPorId = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params
-    const mesa = await Mesa.findById(id).populate('ubicacionId', 'nombre') as MesaPoblada | null
-    
+    const mesa = (await Mesa.findById(id).populate('ubicacionId', 'nombre')) as MesaPoblada | null
+
     if (!mesa) {
-        res.status(404).json({ mensaje: 'Mesa no encontrada' })
-        return;
+      res.status(404).json({ mensaje: 'Mesa no encontrada' })
+      return
     }
-    
+
     res.status(200).json(mapMesa(mesa))
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al obtener la mesa', error: err.message || err })
   }
 }
@@ -231,20 +252,22 @@ export const actualizarMesa = async (req: Request, res: Response): Promise<void>
   try {
     const { id } = req.params
     const body: MesaPayload = req.body
-   const update: Record<string, any> = {}
+    const update: Record<string, any> = {}
 
     if (body.name !== undefined) {
       const validacion = validarNombreMesa(body.name)
       if (!validacion.valido) {
         res.status(400).json({ mensaje: validacion.mensaje })
-        return;
+        return
       }
-      
+
       const regexNombre = new RegExp(`^${escapeRegex((body.name || '').trim())}$`, 'i')
       const existente = await Mesa.findOne({ numero: regexNombre, _id: { $ne: id } })
       if (existente) {
-        res.status(400).json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
-        return;
+        res
+          .status(400)
+          .json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
+        return
       }
       update.numero = body.name.trim()
     }
@@ -264,24 +287,24 @@ export const actualizarMesa = async (req: Request, res: Response): Promise<void>
     if (body.status !== undefined) update.estado = estadoFrontendToBackend(body.status)
     if (body.type !== undefined) update.tipo = body.type
 
-    const mesaActualizada = await Mesa.findByIdAndUpdate(id, update, { new: true }).populate(
+    const mesaActualizada = (await Mesa.findByIdAndUpdate(id, update, { new: true }).populate(
       'ubicacionId',
       'nombre'
-    ) as MesaPoblada | null
+    )) as MesaPoblada | null
 
     if (!mesaActualizada) {
-        res.status(404).json({ mensaje: 'Mesa no encontrada' })
-        return;
+      res.status(404).json({ mensaje: 'Mesa no encontrada' })
+      return
     }
 
     const mapped = mapMesa(mesaActualizada)
     try {
       getIO().emit('mesas:updated', mapped)
     } catch (e) {}
-    
+
     res.status(200).json(mapped)
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al actualizar la mesa', error: err.message || err })
   }
 }
@@ -292,25 +315,25 @@ export const actualizarEstadoMesa = async (req: Request, res: Response): Promise
     const { estado } = req.body
     const backendStatus = estadoFrontendToBackend(estado) || estado
 
-    const mesaActualizada = await Mesa.findByIdAndUpdate(
+    const mesaActualizada = (await Mesa.findByIdAndUpdate(
       id,
       { estado: backendStatus },
       { new: true }
-    ).populate('ubicacionId', 'nombre') as MesaPoblada | null
+    ).populate('ubicacionId', 'nombre')) as MesaPoblada | null
 
     if (!mesaActualizada) {
-        res.status(404).json({ mensaje: 'Mesa no encontrada' })
-        return;
+      res.status(404).json({ mensaje: 'Mesa no encontrada' })
+      return
     }
 
     const mapped = mapMesa(mesaActualizada)
     try {
       getIO().emit('mesas:updated', mapped)
     } catch (e) {}
-    
+
     res.status(200).json(mapped)
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al actualizar estado', error: err.message || err })
   }
 }
@@ -318,21 +341,21 @@ export const actualizarEstadoMesa = async (req: Request, res: Response): Promise
 export const eliminarMesa = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params
-    const eliminado = await Mesa.findByIdAndDelete(id) as MesaPoblada | null
-    
+    const eliminado = (await Mesa.findByIdAndDelete(id)) as MesaPoblada | null
+
     if (!eliminado) {
-        res.status(404).json({ mensaje: 'Mesa no encontrada' })
-        return;
+      res.status(404).json({ mensaje: 'Mesa no encontrada' })
+      return
     }
-    
+
     const mapped = mapMesa(eliminado)
     try {
       getIO().emit('mesas:deleted', mapped)
     } catch (e) {}
-    
+
     res.status(200).json({ mensaje: 'Mesa eliminada', mesa: mapped })
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al eliminar mesa', error: err.message || err })
   }
 }

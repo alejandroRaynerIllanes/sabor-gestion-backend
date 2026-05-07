@@ -29,43 +29,43 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
 // 2. Procesamiento de Pago Final (Conectado a tu Modal)
 export const procesarPagoFinal = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { pedidoId } = req.params;
-    
-    // Recibimos los datos del modal "Procesar Pago"
-    const { 
-      metodoPago, // 'Transferencia', 'Efectivo', 'Tarjeta', 'QR'
-      porcentajeDescuento = 0, 
-      porcentajePropina = 0 
-    } = req.body;
+    const { pedidoId } = req.params
 
-    const pedido = await Pedido.findById(pedidoId);
+    // Recibimos los datos del modal "Procesar Pago"
+    const {
+      metodoPago, // 'Transferencia', 'Efectivo', 'Tarjeta', 'QR'
+      porcentajeDescuento = 0,
+      porcentajePropina = 0
+    } = req.body
+
+    const pedido = await Pedido.findById(pedidoId)
     if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' });
-      return;
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
     }
 
     // A. Cálculos matemáticos basados en tu UI
-    const subtotal = pedido.total; // El total original antes de descuentos
-    const montoDescuento = subtotal * (porcentajeDescuento / 100);
-    const subtotalConDescuento = subtotal - montoDescuento;
-    const montoPropina = subtotalConDescuento * (porcentajePropina / 100);
-    const totalFinal = subtotalConDescuento + montoPropina;
+    const subtotal = pedido.total // El total original antes de descuentos
+    const montoDescuento = subtotal * (porcentajeDescuento / 100)
+    const subtotalConDescuento = subtotal - montoDescuento
+    const montoPropina = subtotalConDescuento * (porcentajePropina / 100)
+    const totalFinal = subtotalConDescuento + montoPropina
 
     // B. Actualizar el pedido a CERRADO (Pagado)
-    pedido.estado = 'CERRADO';
-    pedido.total = totalFinal; // Actualizamos el total al monto real cobrado
-    
-    // C. Guardar los datos del pago en la BD (Mapeado a tu nuevo modelo)
-    pedido.metodoPago = metodoPago || 'Efectivo'; // Valor por defecto si no llega
-    pedido.montoDescuento = montoDescuento;
-    pedido.montoPropina = montoPropina;
-    pedido.subtotalCierre = subtotal; // Para auditoría, guardamos el original
+    pedido.estado = 'CERRADO'
+    pedido.total = totalFinal // Actualizamos el total al monto real cobrado
 
-    await pedido.save();
+    // C. Guardar los datos del pago en la BD (Mapeado a tu nuevo modelo)
+    pedido.metodoPago = metodoPago || 'Efectivo' // Valor por defecto si no llega
+    pedido.montoDescuento = montoDescuento
+    pedido.montoPropina = montoPropina
+    pedido.subtotalCierre = subtotal // Para auditoría, guardamos el original
+
+    await pedido.save()
 
     // D. ¡MAGIA! Liberamos la mesa para el siguiente cliente
     if (pedido.mesa) {
-      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' });
+      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' })
     }
 
     // E. Responder con la data exacta que necesita tu Modal de "Comprobante de Pago"
@@ -80,10 +80,9 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
         metodoPago: pedido.metodoPago,
         fecha: new Date()
       }
-    });
-
+    })
   } catch (error) {
-    const err = error as Error;
-    res.status(500).json({ mensaje: 'Error al procesar el pago', error: err.message });
+    const err = error as Error
+    res.status(500).json({ mensaje: 'Error al procesar el pago', error: err.message })
   }
 }

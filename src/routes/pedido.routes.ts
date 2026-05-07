@@ -1,9 +1,9 @@
 // src/routes/pedido.routes.ts
 import { Router } from 'express'
-import { 
-  cancelarPedido, 
-  crearPedido, 
-  obtenerPedidos, 
+import {
+  cancelarPedido,
+  crearPedido,
+  obtenerPedidos,
   actualizarEstadoPedido // <-- Añadimos la nueva función
 } from '../controllers/pedido.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
