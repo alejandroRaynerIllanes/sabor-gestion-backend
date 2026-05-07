@@ -1,3 +1,4 @@
+//src/routes/usuario.routes.ts
 import { Router } from 'express'
 import {
   obtenerUsuarios,
