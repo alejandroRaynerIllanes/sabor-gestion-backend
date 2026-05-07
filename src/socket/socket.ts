@@ -11,10 +11,10 @@ export const initSocket = (httpServer: HTTPServer) => {
       origin: [
         'http://localhost:5173',
         'http://localhost:5174',
-        'https://quierodormir.onrender.com'
+        'https://quirquinita.onrender.com' // <-- Reemplaza o añade la nueva URL aquí
       ],
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      credentials: true // Recomendado para que funcione el handshake con auth
+      credentials: true
     }
   })
 
