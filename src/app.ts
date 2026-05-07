@@ -25,7 +25,7 @@ app.use(
     origin: [
       'http://localhost:5173',
       'https://sabor-gestion-backend-sars.onrender.com',
-      'https://tis-pied.vercel.app'
+      'https://https://quierodormir.onrender.com/'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
