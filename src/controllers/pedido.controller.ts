@@ -50,25 +50,6 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
   }
 }
 
-export const actualizarEstadoPedido = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const { id } = req.params;
-    const { estado } = req.body;
-    
-    const pedido = await Pedido.findByIdAndUpdate(id, { estado }, { new: true })
-      .populate('mesa', 'numero tipo')
-      .populate('usuario', 'nombre')
-      .populate('detalles.plato', 'nombre precio');
-      
-    if (!pedido) return res.status(404).json({ mensaje: 'Pedido no encontrado' });
-    
-    getIO().emit('pedido_actualizado', pedido);
-    res.status(200).json(pedido);
-  } catch (error) {
-    res.status(500).json({ mensaje: 'Error al actualizar estado', error });
-  }
-}
-
 export const obtenerPedidos = async (req: Request, res: Response): Promise<void> => {
   try {
     const pedidos = await Pedido.find()

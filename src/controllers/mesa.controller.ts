@@ -236,13 +236,15 @@ export const actualizarMesa = async (req: Request, res: Response): Promise<void>
     if (body.name !== undefined) {
       const validacion = validarNombreMesa(body.name)
       if (!validacion.valido) {
-        return res.status(400).json({ mensaje: validacion.mensaje })
+        res.status(400).json({ mensaje: validacion.mensaje })
+        return;
       }
       
       const regexNombre = new RegExp(`^${escapeRegex((body.name || '').trim())}$`, 'i')
       const existente = await Mesa.findOne({ numero: regexNombre, _id: { $ne: id } })
       if (existente) {
-        return res.status(400).json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
+        res.status(400).json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
+        return;
       }
       update.numero = body.name.trim()
     }
