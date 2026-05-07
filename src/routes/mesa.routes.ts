@@ -1,3 +1,4 @@
+//src/routes/mesa.routes.ts
 import { Router } from 'express'
 import { crearMesa, obtenerMesas } from '../controllers/mesa.controller'
 import {

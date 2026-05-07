@@ -1,3 +1,4 @@
+//src/controllers/ubicacion.controller.ts
 import { Request, Response } from 'express'
 import Ubicacion from '../models/Ubicacion'
 

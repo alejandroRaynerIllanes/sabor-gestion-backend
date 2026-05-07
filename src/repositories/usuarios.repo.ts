@@ -1,3 +1,4 @@
+//src/repositories/usuarios.repo.ts
 import Usuario, { IUsuario } from '../models/Usuario'
 
 export const buscarPorEmail = async (email: string): Promise<IUsuario | null> => {
