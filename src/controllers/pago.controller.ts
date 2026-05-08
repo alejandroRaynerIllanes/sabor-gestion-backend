@@ -44,6 +44,11 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       return
     }
 
+    if (pedido.estado === 'CERRADO') {
+      res.status(400).json({ mensaje: 'Este pedido ya ha sido pagado y cerrado.' });
+      return;
+    }
+
     // A. Cálculos matemáticos basados en tu UI
     const subtotal = pedido.total // El total original antes de descuentos
     const montoDescuento = subtotal * (porcentajeDescuento / 100)

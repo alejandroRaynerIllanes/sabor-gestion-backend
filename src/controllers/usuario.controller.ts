@@ -69,8 +69,7 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
     console.error('ERROR DETALLADO:', error)
     res.status(500).json({
       mensaje: 'Error en el servidor',
-      error: error.message, // Esto te dirá si es por el CI, el ROL o el EMAIL
-      stack: error.errors
+      error: error.message // Esto te dirá si es por el CI, el ROL o el EMAIL
     })
   }
 }
