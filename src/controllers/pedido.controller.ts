@@ -6,6 +6,10 @@ import { getIO } from '../socket/socket'
 
 export const crearPedido = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Generar identificador único PED-XXXX
+    const count = await Pedido.countDocuments()
+    req.body.codigo = `PED-${String(count + 1).padStart(4, '0')}`
+
     // 1. Registrar el nuevo pedido
     const nuevoPedido = new Pedido(req.body)
     await nuevoPedido.save()
@@ -14,6 +18,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
     const pedidoPoblado = await Pedido.findById(nuevoPedido._id)
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
+      .populate('usuario', 'nombre apellido')
 
     // 3. AUTOMATIZACIÓN: Cambiar estado de la mesa a 'Ocupada'
     const mesaId = req.body.mesa
@@ -54,7 +59,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
   try {
     const pedidos = await Pedido.find()
       .populate('mesa', 'numero')
-      .populate('usuario', 'nombre')
+      .populate('usuario', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
       .sort({ createdAt: -1 }) // Los más recientes primero
 
@@ -118,6 +123,7 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
     const pedidoActualizado = await Pedido.findByIdAndUpdate(id, { estado }, { new: true })
       .populate('mesa', 'numero')
       .populate('detalles.plato', 'nombre precio')
+      .populate('usuario', 'nombre apellido')
 
     if (!pedidoActualizado) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
@@ -132,7 +138,7 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
       io.emit('cocina:actualizar_tablero', pedidoActualizado)
 
       // B) EL EVENTO CLAVE: Si el chef presionó "Terminado/Listos"
-      if (estado === 'Listos') {
+      if (estado === 'ENTREGADO' || estado === 'Listos') {
         // Le gritamos al frontend del Mesero para que encienda el badge verde de "¡LISTO!"
         io.emit('mesas:alerta_listo', {
           pedidoId: pedidoActualizado._id.toString(),

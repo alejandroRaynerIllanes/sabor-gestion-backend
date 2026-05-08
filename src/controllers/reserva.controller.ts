@@ -28,9 +28,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     }
 
     if (!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(nombreCliente)) {
-      return res.status(400).json({
-        mensaje: 'El nombre del cliente solo debe contener letras. Ejemplo: "Maria Lopez"'
-      })
+      return res.status(400).json({ mensaje: 'El nombre del cliente solo debe contener letras. Ejemplo: "Maria Lopez"' })
     }
 
     if (cantidadPersonas < 1 || cantidadPersonas > 20) {
@@ -58,7 +56,12 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       })
     }
 
+    // Generar código único legíble RES-XXXX
+    const count = await Reserva.countDocuments()
+    const codigoGenerado = `RES-${String(count + 1).padStart(4, '0')}`
+
     const nuevaReserva = new Reserva({
+      codigo: codigoGenerado,
       fecha: new Date(fechaReserva),
       hora: horaReserva,
       clienteNombre: nombreCliente,
@@ -80,6 +83,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     const reservaFormateada = {
       id: reservaGuardada?._id,
+      codigo: reservaGuardada?.codigo,
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
       date: reservaGuardada?.fecha,
@@ -116,6 +120,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
 
     const reservasFormateadas = reservas.map((reserva) => ({
       id: reserva._id,
+      codigo: reserva.codigo,
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
       date: reserva.fecha,
@@ -155,8 +160,16 @@ export const eliminarReserva = async (req: CustomRequest, res: Response) => {
 
     if (reservasRestantes === 0) {
       await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
+      try {
+        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Disponible' })
+      } catch (e) {}
     } else {
       await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+      try {
+        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+      } catch (e) {}
     }
 
     return res.status(200).json({

@@ -140,10 +140,8 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
         imagen: p.datosPlato.imagenUrl
       })),
       categoriasPopulares: categoriasFormateadas,
-      ordenesRecientes: ordenesRecientes.map((o) => ({
-        id: String(o._id)
-          .substring(String(o._id).length - 3)
-          .toUpperCase(),
+      ordenesRecientes: ordenesRecientes.map((o: any) => ({
+        id: o.codigo || `PED-${String(o._id).slice(-4).toUpperCase()}`,
         mesa: (o.mesa as any)?.numero || 'Barra/Llevar',
         hora: o.fechaHora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), // Usamos tu campo fechaHora
         estado: traducirEstado(o.estado), // Usamos el traductor
