@@ -4,6 +4,7 @@ import Reserva from '../models/Reserva'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 import { CustomRequest } from '../middlewares/auth.middleware'
+import Contador from '../models/Contador'
 
 export const crearReserva = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
@@ -47,8 +48,17 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
         mensaje: 'Ya existe una reserva para esa mesa en esa fecha y hora.'
       })
     }
+    
+    const contadorDoc: any = await Contador.findOneAndUpdate(
+      { nombre_secuencia: 'reservas_restaurante' },
+      { $inc: { secuencia: 1 } },
+      { new: true, upsert: true } // Si no existe, lo crea y le pone 1
+    )
+
+    const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
 
     const nuevaReserva = new Reserva({
+      pedidoId: elPedidoIdFormateado,
       fecha: new Date(fechaReserva),
       hora: horaReserva,
       clienteNombre: nombreCliente,
@@ -70,6 +80,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     const reservaFormateada = {
       id: reservaGuardada?._id,
+      numeroPedido: reservaGuardada?.pedidoId,
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
       date: reservaGuardada?.fecha,
@@ -106,6 +117,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
 
     const reservasFormateadas = reservas.map((reserva) => ({
       id: reserva._id,
+      numeroPedido: reserva.pedidoId,
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
       date: reserva.fecha,
