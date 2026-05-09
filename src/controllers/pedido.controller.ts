@@ -54,14 +54,17 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
 
 export const obtenerPedidos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hoy } = req.query
+    const { hoy, fecha } = req.query
     const filtro: any = {}
 
-    // Optimización: Si se requiere, filtrar directamente desde la BD solo los de hoy
     if (hoy === 'true') {
       const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
       const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
       filtro.createdAt = { $gte: inicioHoy, $lte: finHoy };
+    } else if (fecha) {
+      const inicio = new Date(fecha as string); inicio.setHours(0, 0, 0, 0);
+      const fin = new Date(fecha as string); fin.setHours(23, 59, 59, 999);
+      filtro.createdAt = { $gte: inicio, $lte: fin };
     }
 
     const pedidos = await Pedido.find(filtro)
@@ -187,6 +190,19 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (!pedidoActualizado) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
+    }
+
+    // REPARACIÓN CRÍTICA: Forzar la mesa a Ocupada en BD por si estaba desfasada y notificar a la red
+    if (pedidoActualizado.mesa) {
+      const mesaId = typeof pedidoActualizado.mesa === 'object' ? (pedidoActualizado.mesa as any)._id : pedidoActualizado.mesa;
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Ocupada' });
+      try {
+        getIO().emit('mesas:updated', {
+          id: mesaId.toString(),
+          status: 'Ocupada',
+          name: (pedidoActualizado.mesa as any).numero || 'Mesa'
+        })
+      } catch(e) {}
     }
 
     // Avisamos a la cocina en tiempo real que este pedido tiene platos nuevos
