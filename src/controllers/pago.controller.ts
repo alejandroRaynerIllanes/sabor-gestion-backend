@@ -2,6 +2,7 @@
 import { Request, Response } from 'express'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
+import { getIO } from '../socket/socket'
 
 // 1. Generador de QR (Se mantiene para cuando eligen método QR)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
@@ -72,6 +73,14 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     if (pedido.mesa) {
       await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' })
     }
+
+    // D.2 ¡NUEVO! Notificar por WebSockets para limpiar cocina inmediatamente
+    try {
+      getIO().emit('cocina:actualizar_tablero', pedido)
+      if (pedido.mesa) {
+        getIO().emit('mesas:updated', { id: pedido.mesa, status: 'Disponible' })
+      }
+    } catch (e) {}
 
     // E. Responder con la data exacta que necesita tu Modal de "Comprobante de Pago"
     res.status(200).json({
