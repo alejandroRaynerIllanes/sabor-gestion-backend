@@ -4,7 +4,8 @@ import {
   cancelarPedido,
   crearPedido,
   obtenerPedidos,
-  actualizarEstadoPedido // <-- Añadimos la nueva función
+  actualizarEstadoPedido,
+  actualizarPedido
 } from '../controllers/pedido.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
 
@@ -15,6 +16,9 @@ router.post('/', verificarToken, crearPedido)
 
 // Listar todos los pedidos (Cocina / Admin)
 router.get('/', verificarToken, obtenerPedidos)
+
+// Actualizar contenido de un pedido existente (Añadir más platos)
+router.put('/:id', verificarToken, actualizarPedido)
 
 // Actualizar el estado del pedido: "Por hacer" -> "Cocinando" -> "Listos" (Cocina)
 router.patch('/:id/estado', verificarToken, actualizarEstadoPedido)

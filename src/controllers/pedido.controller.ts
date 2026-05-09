@@ -6,12 +6,9 @@ import { getIO } from '../socket/socket'
 
 export const crearPedido = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Generar identificador único PED-XXXX
-    const count = await Pedido.countDocuments()
-    req.body.codigo = `PED-${String(count + 1).padStart(4, '0')}`
-
-    // 1. Registrar el nuevo pedido
+    // 1. Registrar el nuevo pedido y generar un código seguro basado en su ObjectID
     const nuevoPedido = new Pedido(req.body)
+    nuevoPedido.codigo = `PED-${String(nuevoPedido._id).slice(-4).toUpperCase()}`
     await nuevoPedido.save()
 
     // 2. Poblar datos para que cocina reciba el nombre del plato y no solo el ID
@@ -57,7 +54,17 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
 
 export const obtenerPedidos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const pedidos = await Pedido.find()
+    const { hoy } = req.query
+    const filtro: any = {}
+
+    // Optimización: Si se requiere, filtrar directamente desde la BD solo los de hoy
+    if (hoy === 'true') {
+      const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
+      const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
+      filtro.createdAt = { $gte: inicioHoy, $lte: finHoy };
+    }
+
+    const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
       .populate('usuario', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
@@ -159,5 +166,35 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
     res
       .status(500)
       .json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message })
+  }
+}
+
+export const actualizarPedido = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+    const { total, detalles } = req.body
+
+    // Actualizamos los platos y el nuevo total del pedido existente
+    const pedidoActualizado = await Pedido.findByIdAndUpdate(
+      id,
+      { total, detalles },
+      { new: true }
+    )
+      .populate('detalles.plato', 'nombre precio')
+      .populate('mesa', 'numero')
+      .populate('usuario', 'nombre apellido')
+
+    if (!pedidoActualizado) {
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
+    }
+
+    // Avisamos a la cocina en tiempo real que este pedido tiene platos nuevos
+    try { getIO().emit('cocina:actualizar_tablero', pedidoActualizado) } catch (e) {}
+
+    res.status(200).json(pedidoActualizado)
+  } catch (error) {
+    const err = error as Error
+    res.status(500).json({ mensaje: 'Error al actualizar el pedido', error: err.message })
   }
 }

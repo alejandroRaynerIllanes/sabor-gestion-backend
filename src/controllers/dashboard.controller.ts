@@ -13,7 +13,7 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
     finHoy.setHours(23, 59, 59, 999)
 
     // 2. Consultas en paralelo para optimizar rendimiento
-    const [statsHoy, mesasActivas, platosPopulares, categoriasPopulares, ordenesRecientes] =
+    const [statsHoy, mesasActivas, platosPopulares, categoriasPopulares, ordenesRecientes, totalMesasBD] =
       await Promise.all([
         // A. Ventas y cantidad de órdenes de hoy
         Pedido.aggregate([
@@ -90,7 +90,10 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
         ]),
 
         // E. Órdenes recientes para la tabla inferior
-        Pedido.find().sort({ createdAt: -1 }).limit(5).populate('mesa', 'numero')
+        Pedido.find().sort({ createdAt: -1 }).limit(5).populate('mesa', 'numero'),
+
+        // F. Total de mesas reales registradas
+        Mesa.countDocuments()
       ])
 
     const traducirEstado = (estadoBD: string) => {
@@ -124,7 +127,7 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
 
     // 4. Formatear KPIs
     const resumen = statsHoy[0] || { totalVentas: 0, totalOrdenes: 0 }
-    const totalMesas = 20 // Ajustar según capacidad real del restaurante
+    const totalMesas = totalMesasBD > 0 ? totalMesasBD : 1 // Dinámico y previene división por cero
 
     res.status(200).json({
       kpis: {
