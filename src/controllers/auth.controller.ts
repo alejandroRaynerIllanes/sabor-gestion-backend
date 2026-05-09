@@ -68,6 +68,17 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
       return
     }
 
+    const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (!regexNombres.test(nombre) || nombre.length > 30) {
+      res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' }); return;
+    }
+    if (!regexNombres.test(apellido) || apellido.length > 30) {
+      res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' }); return;
+    }
+    if (!/^\d+$/.test(ci) || ci.length > 8) {
+      res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' }); return;
+    }
+
     const usuarioExistente = await Usuario.findOne({
       $or: [{ email }, { ci }]
     })

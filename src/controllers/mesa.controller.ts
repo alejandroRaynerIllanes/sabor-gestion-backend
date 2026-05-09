@@ -51,6 +51,10 @@ const validarNombreMesa = (nombre: string | undefined): { valido: boolean; mensa
   if (!nombre) return { valido: false, mensaje: 'El nombre de la mesa es requerido.' }
   const nom = String(nombre).toLowerCase().trim()
 
+  if (String(nombre).length > 25) {
+    return { valido: false, mensaje: 'El identificador de mesa no puede superar los 25 caracteres.' }
+  }
+
   const regexEspeciales = /^[a-záéíóúñ0-9\s]+$/i
   if (!regexEspeciales.test(nom))
     return { valido: false, mensaje: 'No se permiten símbolos especiales.' }

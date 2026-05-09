@@ -20,6 +20,17 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
   try {
     const { nombre, apellido, ci, email, password, rol } = req.body
 
+    const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (!regexNombres.test(nombre) || nombre.length > 30) {
+      return res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' })
+    }
+    if (!regexNombres.test(apellido) || apellido.length > 30) {
+      return res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' })
+    }
+    if (!/^\d+$/.test(ci) || ci.length > 8) {
+      return res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
+    }
+
     // 1. Validación dual: Verificamos si el CI o el Email ya existen
     const usuarioExistente = await Usuario.findOne({
       $or: [{ email: email }, { ci: ci }]
@@ -90,6 +101,17 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     let usuario = await Usuario.findById(id)
     if (!usuario) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' })
+    }
+
+    const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (nombre && (!regexNombres.test(nombre) || nombre.length > 30)) {
+      return res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' })
+    }
+    if (apellido && (!regexNombres.test(apellido) || apellido.length > 30)) {
+      return res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' })
+    }
+    if (ci && (!/^\d+$/.test(ci) || ci.length > 8)) {
+      return res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
     }
 
     // Si el admin mandó un CI o Email diferente, verificar que no choque con otro usuario
