@@ -50,6 +50,11 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    if (pedido.estado !== 'SERVIDO' && pedido.estado !== 'CERRADO') {
+      res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado al cliente.' })
+      return
+    }
+
     // A. Cálculos matemáticos basados en tu UI
     const subtotal = pedido.total // El total original antes de descuentos
     const montoDescuento = subtotal * (porcentajeDescuento / 100)

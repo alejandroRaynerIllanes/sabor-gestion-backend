@@ -149,11 +149,12 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
 
       // B) EL EVENTO CLAVE: Si el chef presionó "Terminado/Listos"
       if (estado === 'ENTREGADO' || estado === 'Listos') {
+        console.log('🔔 [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:', pedidoActualizado._id.toString());
         // Le gritamos al frontend del Mesero para que encienda el badge verde de "¡LISTO!"
         io.emit('mesas:alerta_listo', {
           pedidoId: pedidoActualizado._id.toString(),
-          mesaId: pedidoActualizado.mesa?._id.toString(),
-          mesaNombre: (pedidoActualizado.mesa as any)?.numero
+          mesaId: pedidoActualizado.mesa ? ((pedidoActualizado.mesa as any)._id?.toString() || pedidoActualizado.mesa.toString()) : undefined,
+          mesaNombre: pedidoActualizado.mesa ? ((pedidoActualizado.mesa as any).numero || (pedidoActualizado.mesa as any).name || (pedidoActualizado.mesa as any).nombre || 'Mesa') : '?'
         })
       }
     } catch (socketError) {
@@ -177,10 +178,16 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     const { id } = req.params
     const { total, detalles } = req.body
 
+    const pedidoAnterior = await Pedido.findById(id);
+    const updates: any = { total, detalles };
+    if (pedidoAnterior && pedidoAnterior.estado === 'SERVIDO') {
+       updates.estado = 'ABIERTO';
+    }
+
     // Actualizamos los platos y el nuevo total del pedido existente
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
-      { total, detalles },
+      updates,
       { new: true }
     )
       .populate('detalles.plato', 'nombre precio')
