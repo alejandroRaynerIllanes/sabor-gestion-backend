@@ -184,7 +184,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (total !== undefined) updates.total = total;
     if (detalles !== undefined) updates.detalles = detalles;
     
-    if (pedidoAnterior && pedidoAnterior.estado === 'SERVIDO') {
+    if (pedidoAnterior && pedidoAnterior.estado === 'ENTREGADO') {
        updates.estado = 'ABIERTO';
     }
     
@@ -229,13 +229,198 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     try { getIO().emit('cocina:actualizar_tablero', pedidoActualizado) } catch (e) {}
     
     // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
-    if (cajeroAsignado) {
-      try { getIO().emit('caja:nueva_cuenta', pedidoActualizado) } catch (e) {}
+    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
+  if (cajeroAsignado) {
+    const pedidoCaja: any = pedidoActualizado
+
+    const payloadCaja = {
+      pedidoId: pedidoCaja._id,
+      codigo: pedidoCaja.codigo || `PED-${String(pedidoCaja._id).slice(-4).toUpperCase()}`,
+      mesaId: pedidoCaja.mesa?._id || pedidoCaja.mesa,
+      mesaNombre: pedidoCaja.mesa?.numero || 'Mesa sin asignar',
+      meseroNombre: pedidoCaja.usuario
+        ? `${pedidoCaja.usuario.nombre || ''} ${pedidoCaja.usuario.apellido || ''}`.trim()
+        : 'Sin mesero',
+      total: pedidoCaja.total,
+      items:
+        pedidoCaja.detalles?.map((detalle: any) => ({
+          platoId: detalle.plato?._id || detalle.plato,
+          nombre: detalle.plato?.nombre || 'Plato no disponible',
+          cantidad: detalle.cantidad,
+          precioUnitario: detalle.precioUnitario,
+          subtotal: detalle.subtotal,
+          observacion: detalle.observacion
+        })) || []
     }
+
+    try {
+      const io = getIO()
+
+      // Evento que ya existía en el backend
+      io.emit('caja:nueva_cuenta', payloadCaja)
+
+      // Evento sugerido por el documento del frontend
+      io.emit('caja:solicitud_pago', payloadCaja)
+    } catch (e) {}
+  }
+
 
     res.status(200).json(pedidoActualizado)
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al actualizar el pedido', error: err.message })
+  }
+}
+
+export const obtenerPedidosPendientesCobro = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    // 1. Buscamos las mesas que ya solicitaron cuenta
+    const mesasConCuentaSolicitada = await Mesa.find({
+      estado: 'Cuenta Solicitada'
+    }).select('_id')
+
+    const mesaIds = mesasConCuentaSolicitada.map((mesa) => mesa._id)
+
+    // 2. Buscamos pedidos entregados asociados a esas mesas
+    const pedidos = await Pedido.find({
+      estado: 'ENTREGADO',
+      mesa: { $in: mesaIds }
+    })
+      .populate('mesa', 'numero estado')
+      .populate('usuario', 'nombre apellido')
+      .populate('detalles.plato', 'nombre precio')
+      .sort({ updatedAt: -1 })
+
+    // 3. Formateamos la respuesta para que sea cómoda para el frontend
+    const respuesta = pedidos.map((pedido: any) => {
+      const fechaBase = pedido.updatedAt || pedido.createdAt || pedido.fechaHora
+      const tiempoEsperaMinutos = fechaBase
+        ? Math.floor((Date.now() - new Date(fechaBase).getTime()) / 60000)
+        : 0
+
+      return {
+        pedidoId: pedido._id,
+        codigo: pedido.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`,
+        mesaId: pedido.mesa?._id,
+        mesaNombre: pedido.mesa?.numero || 'Mesa sin asignar',
+        meseroNombre: pedido.usuario
+          ? `${pedido.usuario.nombre || ''} ${pedido.usuario.apellido || ''}`.trim()
+          : 'Sin mesero',
+        total: pedido.total,
+        tiempoEsperaMinutos,
+        items: pedido.detalles.map((detalle: any) => ({
+          platoId: detalle.plato?._id || detalle.plato,
+          nombre: detalle.plato?.nombre || 'Plato no disponible',
+          cantidad: detalle.cantidad,
+          precioUnitario: detalle.precioUnitario,
+          subtotal: detalle.subtotal,
+          observacion: detalle.observacion
+        }))
+      }
+    })
+
+    res.status(200).json(respuesta)
+  } catch (error) {
+    const err = error as Error
+    res.status(500).json({
+      mensaje: 'Error al obtener pedidos pendientes de cobro',
+      error: err.message
+    })
+  }
+}
+
+
+export const solicitarCuentaPedido = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+
+    const pedido = await Pedido.findById(id)
+
+    if (!pedido) {
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
+    }
+
+    if (!pedido.mesa) {
+      res.status(400).json({
+        mensaje: 'No se puede solicitar cuenta porque el pedido no tiene una mesa asignada.'
+      })
+      return
+    }
+
+    if (pedido.estado !== 'ENTREGADO') {
+      res.status(400).json({
+        mensaje: 'Solo se puede solicitar cuenta de un pedido entregado.'
+      })
+      return
+    }
+
+    const mesaActualizada = await Mesa.findByIdAndUpdate(
+      pedido.mesa,
+      { estado: 'Cuenta Solicitada' },
+      { new: true }
+    )
+
+    if (!mesaActualizada) {
+      res.status(404).json({ mensaje: 'Mesa no encontrada' })
+      return
+    }
+
+    const pedidoPoblado = await Pedido.findById(id)
+      .populate('mesa', 'numero estado')
+      .populate('usuario', 'nombre apellido')
+      .populate('detalles.plato', 'nombre precio')
+
+    const payload = {
+      pedidoId: pedidoPoblado?._id,
+      codigo: (pedidoPoblado as any)?.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`,
+      mesaId: mesaActualizada._id,
+      mesaNombre: mesaActualizada.numero,
+      meseroNombre: (pedidoPoblado as any)?.usuario
+        ? `${(pedidoPoblado as any).usuario.nombre || ''} ${(pedidoPoblado as any).usuario.apellido || ''}`.trim()
+        : 'Sin mesero',
+      total: pedidoPoblado?.total || pedido.total,
+      items: (pedidoPoblado as any)?.detalles?.map((detalle: any) => ({
+        platoId: detalle.plato?._id || detalle.plato,
+        nombre: detalle.plato?.nombre || 'Plato no disponible',
+        cantidad: detalle.cantidad,
+        precioUnitario: detalle.precioUnitario,
+        subtotal: detalle.subtotal,
+        observacion: detalle.observacion
+      })) || []
+    }
+
+    try {
+      const io = getIO()
+
+      // Evento equivalente para pantalla de caja.
+      io.emit('caja:nueva_cuenta', payload)
+
+      // Evento recomendado por el documento del frontend.
+      io.emit('caja:solicitud_pago', payload)
+
+      // También avisamos a todos que la mesa cambió de estado.
+      io.emit('mesas:updated', {
+        id: mesaActualizada._id.toString(),
+        status: 'Esperando pago',
+        name: mesaActualizada.numero
+      })
+    } catch (socketError) {
+      console.warn('Cuenta solicitada, pero falló la notificación en tiempo real')
+    }
+
+    res.status(200).json({
+      mensaje: 'Cuenta solicitada correctamente',
+      solicitud: payload
+    })
+  } catch (error) {
+    const err = error as Error
+    res.status(500).json({
+      mensaje: 'Error al solicitar la cuenta',
+      error: err.message
+    })
   }
 }

@@ -20,7 +20,7 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
           {
             $match: {
               createdAt: { $gte: inicioHoy, $lte: finHoy },
-              estado: { $ne: 'CANCELADO' }
+              estado: 'CERRADO'
             }
           },
           {
@@ -37,7 +37,7 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
 
         // C. Top 5 Platos más vendidos
         Pedido.aggregate([
-          { $match: { estado: { $ne: 'CANCELADO' } } },
+          { $match: { estado: 'CERRADO' } },
           { $unwind: '$detalles' },
           {
             $group: {
@@ -60,7 +60,7 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
 
         // D. Categorías más populares (con doble $lookup)
         Pedido.aggregate([
-          { $match: { estado: { $ne: 'CANCELADO' } } },
+          { $match: { estado: 'CERRADO' } },
           { $unwind: '$detalles' },
           {
             $lookup: {

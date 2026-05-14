@@ -50,7 +50,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    if (pedido.estado !== 'SERVIDO' && pedido.estado !== 'CERRADO') {
+    if (pedido.estado !== 'ENTREGADO' && pedido.estado !== 'CERRADO') {
       res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado al cliente.' })
       return
     }
@@ -85,12 +85,30 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     }
 
     // D.2 ¡NUEVO! Notificar por WebSockets para limpiar cocina inmediatamente
-    try {
-      getIO().emit('cocina:actualizar_tablero', pedido)
-      if (pedido.mesa) {
-        getIO().emit('mesas:updated', { id: pedido.mesa, status: 'Disponible' })
-      }
-    } catch (e) {}
+    // D.2 Notificar por WebSockets que el pago fue completado
+  try {
+    const io = getIO()
+
+    io.emit('cocina:actualizar_tablero', pedido)
+
+    if (pedido.mesa) {
+      const mesaLiberada = await Mesa.findById(pedido.mesa)
+
+      io.emit('mesas:updated', {
+        id: pedido.mesa.toString(),
+        status: 'Disponible',
+        name: mesaLiberada?.numero || 'Mesa'
+      })
+
+      io.emit('mesas:pago_completado', {
+        mesaId: pedido.mesa.toString(),
+        mesaNombre: mesaLiberada?.numero || 'Mesa',
+        pedidoId: pedido._id.toString(),
+        mensaje: 'Pago procesado exitosamente'
+      })
+    }
+  } catch (e) {}
+
 
     // E. Responder con la data exacta que necesita tu Modal de "Comprobante de Pago"
     res.status(200).json({
