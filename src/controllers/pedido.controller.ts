@@ -62,8 +62,8 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
       filtro.createdAt = { $gte: inicioHoy, $lte: finHoy };
     } else if (fecha) {
-      const inicio = new Date(fecha as string); inicio.setHours(0, 0, 0, 0);
-      const fin = new Date(fecha as string); fin.setHours(23, 59, 59, 999);
+      const inicio = new Date(`${fecha}T00:00:00`);
+      const fin = new Date(`${fecha}T23:59:59.999`);
       filtro.createdAt = { $gte: inicio, $lte: fin };
     }
 
