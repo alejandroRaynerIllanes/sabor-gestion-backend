@@ -87,9 +87,13 @@ export const actualizarUbicacion = async (req: Request, res: Response) => {
     )
     if (!actualizada) return res.status(404).json({ mensaje: 'Ubicación no encontrada' })
 
-    res.status(200).json({ id: actualizada._id, nombre: actualizada.nombre || (actualizada as any).name })
+    res
+      .status(200)
+      .json({ id: actualizada._id, nombre: actualizada.nombre || (actualizada as any).name })
   } catch (error: any) {
-    res.status(500).json({ mensaje: 'Error al actualizar ubicación', error: error.message || error })
+    res
+      .status(500)
+      .json({ mensaje: 'Error al actualizar ubicación', error: error.message || error })
   }
 }
 

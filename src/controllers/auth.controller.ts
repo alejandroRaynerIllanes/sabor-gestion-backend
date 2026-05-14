@@ -16,19 +16,21 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
     if (!usuarioEncontrado) {
       console.log(` [LOGIN] Falló: Usuario no encontrado en la BD.`)
       res.status(404).json({ mensaje: 'Usuario no encontrado en el sistema' })
-      return;
+      return
     }
 
     if (!usuarioEncontrado.estado) {
-      res.status(403).json({ mensaje: 'Esta cuenta ha sido desactivada. Contacta al administrador.' })
-      return;
+      res
+        .status(403)
+        .json({ mensaje: 'Esta cuenta ha sido desactivada. Contacta al administrador.' })
+      return
     }
 
     const passwordValida = await bcrypt.compare(password, usuarioEncontrado.password)
     if (!passwordValida) {
       console.log(` [LOGIN] Falló: Contraseña incorrecta para ${email}.`)
       res.status(401).json({ mensaje: 'Contraseña incorrecta' })
-      return;
+      return
     }
 
     // 🛑 BLOQUE DESACTIVADO: Verificación de correo 🛑
@@ -79,8 +81,12 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
     const { nombre, apellido, ci, email, password } = req.body
 
     if (!nombre || !apellido || !ci || !email || !password) {
-      res.status(400).json({ mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password' })
-      return;
+      res
+        .status(400)
+        .json({
+          mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password'
+        })
+      return
     }
 
     const usuarioExistente = await Usuario.findOne({
@@ -90,11 +96,11 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
     if (usuarioExistente) {
       if (usuarioExistente.email === email) {
         res.status(400).json({ mensaje: 'El correo electrónico ya está registrado' })
-        return;
+        return
       }
       if (usuarioExistente.ci === ci) {
         res.status(400).json({ mensaje: 'El CI ya está registrado' })
-        return;
+        return
       }
     }
 
@@ -135,7 +141,11 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
   }
 }
 
-// Las funciones verificarCodigo y reenviarCodigo las dejamos intactas. 
+// Las funciones verificarCodigo y reenviarCodigo las dejamos intactas.
 // Como ya nadie entra en ese flujo, simplemente no se usarán, pero no estorban.
-export const verificarCodigo = async (req: Request, res: Response): Promise<void> => { /* ... código original ... */ }
-export const reenviarCodigo = async (req: Request, res: Response): Promise<void> => { /* ... código original ... */ }
+export const verificarCodigo = async (req: Request, res: Response): Promise<void> => {
+  /* ... código original ... */
+}
+export const reenviarCodigo = async (req: Request, res: Response): Promise<void> => {
+  /* ... código original ... */
+}

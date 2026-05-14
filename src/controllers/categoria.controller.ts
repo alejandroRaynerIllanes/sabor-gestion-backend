@@ -7,20 +7,22 @@ export const crearCategoria = async (req: Request, res: Response): Promise<any> 
     const { nombre } = req.body
 
     if (!nombre || nombre.trim() === '') {
-      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido. Ejemplo: "Bebidas"' })
+      return res
+        .status(400)
+        .json({ mensaje: 'El nombre de la categoría es requerido. Ejemplo: "Bebidas"' })
     }
 
     const regexValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
     if (!regexValido.test(nombre)) {
-      return res.status(400).json({ 
-        mensaje: 'El nombre solo debe contener letras y espacios. Ejemplo: "Postres"' 
+      return res.status(400).json({
+        mensaje: 'El nombre solo debe contener letras y espacios. Ejemplo: "Postres"'
       })
     }
 
-    const categoriaExistente = await Categoria.findOne({ 
-      nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') } 
+    const categoriaExistente = await Categoria.findOne({
+      nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') }
     })
-    
+
     if (categoriaExistente) {
       return res.status(400).json({ mensaje: 'Ya existe una categoría con ese nombre' })
     }
@@ -49,26 +51,32 @@ export const actualizarCategoria = async (req: Request, res: Response): Promise<
     const { nombre } = req.body
 
     if (!nombre || nombre.trim() === '') {
-      return res.status(400).json({ mensaje: 'El nombre de la categoría es requerido. Ejemplo: "Bebidas"' })
+      return res
+        .status(400)
+        .json({ mensaje: 'El nombre de la categoría es requerido. Ejemplo: "Bebidas"' })
     }
 
     const regexValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
     if (!regexValido.test(nombre)) {
-      return res.status(400).json({ 
-        mensaje: 'El nombre solo debe contener letras y espacios. Ejemplo: "Postres"' 
+      return res.status(400).json({
+        mensaje: 'El nombre solo debe contener letras y espacios. Ejemplo: "Postres"'
       })
     }
 
-    const categoriaExistente = await Categoria.findOne({ 
-      nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') }, 
-      _id: { $ne: id } 
+    const categoriaExistente = await Categoria.findOne({
+      nombre: { $regex: new RegExp(`^${nombre.trim()}$`, 'i') },
+      _id: { $ne: id }
     })
-    
+
     if (categoriaExistente) {
       return res.status(400).json({ mensaje: 'Ya existe otra categoría con ese nombre' })
     }
 
-    const categoriaActualizada = await Categoria.findByIdAndUpdate(id, { nombre: nombre.trim() }, { new: true })
+    const categoriaActualizada = await Categoria.findByIdAndUpdate(
+      id,
+      { nombre: nombre.trim() },
+      { new: true }
+    )
 
     if (!categoriaActualizada) {
       return res.status(404).json({ mensaje: 'Categoría no encontrada' })

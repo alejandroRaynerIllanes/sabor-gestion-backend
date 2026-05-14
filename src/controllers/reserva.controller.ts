@@ -28,11 +28,9 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     }
 
     if (!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(nombreCliente)) {
-      return res
-        .status(400)
-        .json({
-          mensaje: 'El nombre del cliente solo debe contener letras. Ejemplo: "Maria Lopez"'
-        })
+      return res.status(400).json({
+        mensaje: 'El nombre del cliente solo debe contener letras. Ejemplo: "Maria Lopez"'
+      })
     }
 
     if (cantidadPersonas < 1 || cantidadPersonas > 20) {

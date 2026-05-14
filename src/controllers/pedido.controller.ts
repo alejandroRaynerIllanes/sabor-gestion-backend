@@ -31,19 +31,19 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
       .populate('mesa', 'numero')
 
     // 3. AUTOMATIZACIÓN: Cambiar estado de la mesa a 'Ocupada'
-    const mesaId = req.body.mesa;
+    const mesaId = req.body.mesa
     const mesaActualizada = await Mesa.findByIdAndUpdate(
       mesaId,
       { estado: 'Ocupada' },
       { new: true }
-    ).populate('ubicacionId', 'nombre');
+    ).populate('ubicacionId', 'nombre')
 
     // 4. WEBSOCKETS: Notificar a los actores del sistema
     try {
-      const io = getIO();
-      
+      const io = getIO()
+
       // Notificar a cocina para que aparezca el ticket en "Por hacer"
-      io.emit('cocina:nuevo_pedido', pedidoPoblado);
+      io.emit('cocina:nuevo_pedido', pedidoPoblado)
 
       // Notificar a todos los meseros que la mesa ahora está ocupada (se pone roja)
       if (mesaActualizada) {
@@ -52,15 +52,15 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
           id: mesaActualizada._id.toString(),
           status: 'Ocupada',
           name: mesaActualizada.numero
-        });
+        })
       }
     } catch (socketError) {
-      console.warn('Pedido guardado, pero falló la notificación en tiempo real');
+      console.warn('Pedido guardado, pero falló la notificación en tiempo real')
     }
 
     res.status(201).json(nuevoPedido)
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al registrar el pedido', error: err.message })
   }
 }
@@ -71,11 +71,11 @@ export const obtenerPedidos = async (req: Request, res: Response) => {
       .populate('mesa', 'numero')
       .populate('usuario', 'nombre')
       .populate('detalles.plato', 'nombre precio')
-      .sort({ createdAt: -1 }); // Los más recientes primero
-      
+      .sort({ createdAt: -1 }) // Los más recientes primero
+
     res.status(200).json(pedidos)
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al obtener los pedidos', error: err.message })
   }
 }
@@ -87,7 +87,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
 
     if (!pedido) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
-      return;
+      return
     }
 
     pedido.estado = 'CANCELADO'
@@ -96,17 +96,17 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
     // Si el pedido tenía una mesa asignada, la liberamos
     if (pedido.mesa) {
       const mesaLiberada = await Mesa.findByIdAndUpdate(
-        pedido.mesa, 
+        pedido.mesa,
         { estado: 'Libre' },
         { new: true }
-      );
+      )
 
       // Avisar por WebSocket que la mesa vuelve a estar disponible (verde)
       if (mesaLiberada) {
         getIO().emit('mesas:updated', {
           id: mesaLiberada._id.toString(),
           status: 'Disponible'
-        });
+        })
       }
     }
 
@@ -115,7 +115,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
       pedido
     })
   } catch (error) {
-    const err = error as Error;
+    const err = error as Error
     res.status(500).json({ mensaje: 'Error al procesar la cancelación', error: err.message })
   }
 }
@@ -124,31 +124,27 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
 
 export const actualizarEstadoPedido = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    
+    const { id } = req.params
+
     // El frontend enviará: { "estado": "Cocinando" } o { "estado": "Listos" }
-    const { estado } = req.body; 
+    const { estado } = req.body
 
     // 1. Actualizamos el estado en la base de datos
-    const pedidoActualizado = await Pedido.findByIdAndUpdate(
-      id,
-      { estado },
-      { new: true }
-    )
-    .populate('mesa', 'numero')
-    .populate('detalles.plato', 'nombre precio');
+    const pedidoActualizado = await Pedido.findByIdAndUpdate(id, { estado }, { new: true })
+      .populate('mesa', 'numero')
+      .populate('detalles.plato', 'nombre precio')
 
     if (!pedidoActualizado) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' });
-      return;
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
     }
 
     // 2. WEBSOCKETS: La magia de la sincronización
     try {
-      const io = getIO();
+      const io = getIO()
 
       // A) Avisar a las pantallas de cocina para que muevan la tarjeta de columna
-      io.emit('cocina:actualizar_tablero', pedidoActualizado);
+      io.emit('cocina:actualizar_tablero', pedidoActualizado)
 
       // B) EL EVENTO CLAVE: Si el chef presionó "Terminado/Listos"
       if (estado === 'Listos') {
@@ -157,19 +153,20 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
           pedidoId: pedidoActualizado._id.toString(),
           mesaId: pedidoActualizado.mesa?._id.toString(),
           mesaNombre: (pedidoActualizado.mesa as any)?.numero
-        });
+        })
       }
-      
     } catch (socketError) {
-      console.warn('Estado actualizado, pero falló la emisión del socket');
+      console.warn('Estado actualizado, pero falló la emisión del socket')
     }
 
     res.status(200).json({
       mensaje: `Pedido movido a ${estado}`,
       pedido: pedidoActualizado
-    });
+    })
   } catch (error) {
-    const err = error as Error;
-    res.status(500).json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message });
+    const err = error as Error
+    res
+      .status(500)
+      .json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message })
   }
 }
