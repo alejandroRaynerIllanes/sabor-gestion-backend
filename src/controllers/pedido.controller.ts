@@ -176,19 +176,32 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
 export const actualizarPedido = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params
-    const { total, detalles } = req.body
+    // Agregamos los campos de la pre-cuenta
+    const { total, detalles, clienteNombre, clienteCI, clienteNIT, cajeroAsignado, montoDescuento, montoPropina, subtotalCierre } = req.body
 
     const pedidoAnterior = await Pedido.findById(id);
-    const updates: any = { total, detalles };
+    const updates: any = {};
+    if (total !== undefined) updates.total = total;
+    if (detalles !== undefined) updates.detalles = detalles;
+    
     if (pedidoAnterior && pedidoAnterior.estado === 'SERVIDO') {
        updates.estado = 'ABIERTO';
     }
+    
+    // Guardar los campos de la pre-cuenta (permitido dinámicamente si el modelo usa strict: false o si están definidos)
+    if (clienteNombre !== undefined) updates.clienteNombre = clienteNombre;
+    if (clienteCI !== undefined) updates.clienteCI = clienteCI;
+    if (clienteNIT !== undefined) updates.clienteNIT = clienteNIT;
+    if (cajeroAsignado !== undefined) updates.cajeroAsignado = cajeroAsignado;
+    if (montoDescuento !== undefined) updates.montoDescuento = montoDescuento;
+    if (montoPropina !== undefined) updates.montoPropina = montoPropina;
+    if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre;
 
     // Actualizamos los platos y el nuevo total del pedido existente
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
-      updates,
-      { new: true }
+      { $set: updates },
+      { new: true, strict: false } // strict: false previene que mongoose borre campos no declarados temporalmente
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
@@ -214,6 +227,11 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
 
     // Avisamos a la cocina en tiempo real que este pedido tiene platos nuevos
     try { getIO().emit('cocina:actualizar_tablero', pedidoActualizado) } catch (e) {}
+    
+    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
+    if (cajeroAsignado) {
+      try { getIO().emit('caja:nueva_cuenta', pedidoActualizado) } catch (e) {}
+    }
 
     res.status(200).json(pedidoActualizado)
   } catch (error) {

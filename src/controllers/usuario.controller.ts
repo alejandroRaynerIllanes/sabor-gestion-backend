@@ -166,6 +166,23 @@ export const cambiarEstadoUsuario = async (req: Request, res: Response): Promise
     const { id } = req.params
     const { estado } = req.body // Recibimos true o false
 
+    // --- NUEVA VALIDACIÓN: Mínimo 1 caja activa ---
+    if (estado === false || String(estado) === 'false') {
+      const usuarioTarget = await Usuario.findById(id);
+      if (usuarioTarget && usuarioTarget.rol.toLowerCase() === 'cajero') {
+        const cajerosActivosRestantes = await Usuario.countDocuments({
+          rol: { $regex: /^cajero$/i },
+          estado: true,
+          _id: { $ne: usuarioTarget._id }
+        });
+        
+        if (cajerosActivosRestantes === 0) {
+          return res.status(400).json({ mensaje: 'Debe existir al menos una caja activa en el sistema.' });
+        }
+      }
+    }
+    // ----------------------------------------------
+
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
       id,
       { estado: estado },

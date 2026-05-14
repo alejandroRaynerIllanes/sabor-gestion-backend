@@ -34,9 +34,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     // Recibimos los datos del modal "Procesar Pago"
     const {
-      metodoPago, // 'Transferencia', 'Efectivo', 'Tarjeta', 'QR'
-      porcentajeDescuento = 0,
-      porcentajePropina = 0
+      metodoPago // 'Efectivo', 'Tarjeta', 'QR'
     } = req.body
 
     const pedido = await Pedido.findById(pedidoId)
@@ -54,23 +52,28 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado al cliente.' })
       return
     }
+    
+    if (!['Efectivo', 'Tarjeta', 'QR'].includes(metodoPago)) {
+      res.status(400).json({ mensaje: 'Método de pago no permitido. Use Efectivo, Tarjeta o QR.' })
+      return
+    }
 
-    // A. Cálculos matemáticos basados en tu UI
-    const subtotal = pedido.total // El total original antes de descuentos
-    const montoDescuento = subtotal * (porcentajeDescuento / 100)
-    const subtotalConDescuento = subtotal - montoDescuento
-    const montoPropina = subtotalConDescuento * (porcentajePropina / 100)
-    const totalFinal = subtotalConDescuento + montoPropina
+    // A. Cálculos matemáticos usando los datos pre-guardados por el mesero
+    const ped: any = pedido; // bypass strict typing to read new fields
+    const subtotal = ped.subtotalCierre || pedido.total || 0;
+    const montoDescuento = ped.montoDescuento || 0;
+    const montoPropina = ped.montoPropina || 0;
+    const totalFinal = subtotal - montoDescuento + montoPropina;
 
     // B. Actualizar el pedido a CERRADO (Pagado)
     pedido.estado = 'CERRADO'
     pedido.total = totalFinal // Actualizamos el total al monto real cobrado
 
     // C. Guardar los datos del pago en la BD (Mapeado a tu nuevo modelo)
-    pedido.metodoPago = metodoPago || 'Efectivo' // Valor por defecto si no llega
-    pedido.montoDescuento = montoDescuento
-    pedido.montoPropina = montoPropina
-    pedido.subtotalCierre = subtotal // Para auditoría, guardamos el original
+    ped.metodoPago = metodoPago
+    ped.montoDescuento = montoDescuento
+    ped.montoPropina = montoPropina
+    ped.subtotalCierre = subtotal
 
     await pedido.save()
 
