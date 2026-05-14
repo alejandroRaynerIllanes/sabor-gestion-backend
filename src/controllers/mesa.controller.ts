@@ -47,6 +47,45 @@ const estadoFrontendToBackend = (status: string | undefined): string | undefined
   return status
 }
 
+const validarNombreMesa = (nombre: string | undefined): { valido: boolean; mensaje?: string } => {
+  if (!nombre) return { valido: false, mensaje: 'El nombre de la mesa es requerido.' }
+  const nom = String(nombre).toLowerCase().trim()
+
+  if (String(nombre).length > 25) {
+    return { valido: false, mensaje: 'El identificador de mesa no puede superar los 25 caracteres.' }
+  }
+
+  const regexEspeciales = /^[a-záéíóúñ0-9\s]+$/i
+  if (!regexEspeciales.test(nom))
+    return { valido: false, mensaje: 'No se permiten símbolos especiales.' }
+
+  if (!nom.includes('mesa'))
+    return { valido: false, mensaje: 'El nombre debe incluir la palabra "mesa".' }
+
+  const ubicaciones = ['interior', 'patio', 'terraza']
+  if (!ubicaciones.some((ub) => nom.includes(ub))) {
+    return {
+      valido: false,
+      mensaje: 'El nombre debe incluir una ubicación válida (interior, patio, terraza).'
+    }
+  }
+
+  const numeros = nom.match(/\d+/g)
+  if (numeros) {
+    for (const numStr of numeros) {
+      if (numStr.length > 3)
+        return { valido: false, mensaje: 'No se permiten más de 3 dígitos numéricos consecutivos.' }
+      if (parseInt(numStr, 10) > 50)
+        return { valido: false, mensaje: 'El número de mesa no puede ser mayor a 50.' }
+    }
+  }
+  return { valido: true }
+}
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 const mapMesa = (m: MesaPoblada | null) => {
   if (!m) return null
 
@@ -219,7 +258,23 @@ export const actualizarMesa = async (req: Request, res: Response): Promise<void>
     const body: MesaPayload = req.body
     const update: Record<string, any> = {}
 
-    if (body.name !== undefined) update.numero = body.name
+    if (body.name !== undefined) {
+      const validacion = validarNombreMesa(body.name)
+      if (!validacion.valido) {
+        res.status(400).json({ mensaje: validacion.mensaje })
+        return
+      }
+
+      const regexNombre = new RegExp(`^${escapeRegex((body.name || '').trim())}$`, 'i')
+      const existente = await Mesa.findOne({ numero: regexNombre, _id: { $ne: id } })
+      if (existente) {
+        res
+          .status(400)
+          .json({ mensaje: 'El nombre de la mesa ya está en uso. Intenta con otro nombre.' })
+        return
+      }
+      update.numero = body.name.trim()
+    }
     if (body.capacity !== undefined) update.capacidad = body.capacity
 
     const loc = body.location || body.ubicacion

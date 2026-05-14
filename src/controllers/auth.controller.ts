@@ -33,25 +33,6 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
       return
     }
 
-    // 🛑 BLOQUE DESACTIVADO: Verificación de correo 🛑
-    /*
-    if (!usuarioEncontrado.verificado) {
-      console.log(` [LOGIN] Bloqueado: ${email} no ha verificado su correo. Enviando código...`)
-      try {
-        await codigoService.procesarEnvioDeCodigo(
-          usuarioEncontrado.email, usuarioEncontrado.nombre, usuarioEncontrado.apellido, usuarioEncontrado._id.toString()
-        )
-      } catch (error) { console.error('Error enviando email en login:', error) }
-
-      res.status(403).json({
-        mensaje: 'Debes verificar tu correo antes de ingresar. Te hemos enviado un nuevo código.',
-        requiereVerificacion: true,
-        usuarioId: usuarioEncontrado._id
-      })
-      return;
-    }
-    */
-
     console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha logueado exitosamente.`)
 
     const token = jwt.sign(
@@ -81,12 +62,21 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
     const { nombre, apellido, ci, email, password } = req.body
 
     if (!nombre || !apellido || !ci || !email || !password) {
-      res
-        .status(400)
-        .json({
-          mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password'
-        })
+      res.status(400).json({
+        mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password'
+      })
       return
+    }
+
+    const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (!regexNombres.test(nombre) || nombre.length > 30) {
+      res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' }); return;
+    }
+    if (!regexNombres.test(apellido) || apellido.length > 30) {
+      res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' }); return;
+    }
+    if (!/^\d+$/.test(ci) || ci.length > 8) {
+      res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' }); return;
     }
 
     const usuarioExistente = await Usuario.findOne({
@@ -120,15 +110,6 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
     })
 
     await nuevoUsuario.save()
-
-    // 🛑 BLOQUE DESACTIVADO: Envío de email 🛑
-    /*
-    try {
-      await codigoService.procesarEnvioDeCodigo(
-        nuevoUsuario.email, nuevoUsuario.nombre, nuevoUsuario.apellido, nuevoUsuario._id.toString()
-      )
-    } catch (error) { console.error('Error enviando email:', error) }
-    */
 
     res.status(201).json({
       mensaje: 'Registro exitoso. Ya puedes iniciar sesión.', // Mensaje actualizado

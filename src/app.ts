@@ -20,18 +20,19 @@ const app: Application = express()
 
 // Middlewares globales
 app.use(morgan('dev'))
+// Localización: src/app.ts
 app.use(
   cors({
     origin: [
-      'http://localhost:5173',
-      'https://sabor-gestion-backend-sars.onrender.com',
+      'http://localhost:5173', 
+      'https://quirquinita.onrender.com', // <-- Reemplaza la URL vieja por esta
       'https://tis-pied.vercel.app'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   })
-)
+);
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 

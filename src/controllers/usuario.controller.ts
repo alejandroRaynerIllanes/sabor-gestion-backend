@@ -18,7 +18,18 @@ export const obtenerUsuarios = async (req: Request, res: Response) => {
 // Crear un nuevo usuario (Desde el modal del administrador)
 export const crearUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { nombre, apellido, ci, email, password, rol } = req.body
+    const { nombre, apellido, ci, email, password, rol, ubicacion } = req.body
+
+    const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (!regexNombres.test(nombre) || nombre.length > 30) {
+      return res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' })
+    }
+    if (!regexNombres.test(apellido) || apellido.length > 30) {
+      return res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' })
+    }
+    if (!/^\d+$/.test(ci) || ci.length > 8) {
+      return res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
+    }
 
     // 1. Validación dual: Verificamos si el CI o el Email ya existen
     const usuarioExistente = await Usuario.findOne({
@@ -45,7 +56,8 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
       ci,
       email,
       password: passwordHasheada,
-      rol
+      rol,
+      ubicacion
       // El 'estado: true' se pone automáticamente por el modelo
     })
 
@@ -62,15 +74,15 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
         ci: nuevoUsuario.ci,
         email: nuevoUsuario.email,
         rol: nuevoUsuario.rol,
-        estado: nuevoUsuario.estado
+        estado: nuevoUsuario.estado,
+        ubicacion: (nuevoUsuario as any).ubicacion
       }
     })
   } catch (error: any) {
     console.error('ERROR DETALLADO:', error)
     res.status(500).json({
       mensaje: 'Error en el servidor',
-      error: error.message, // Esto te dirá si es por el CI, el ROL o el EMAIL
-      stack: error.errors
+      error: error.message // Esto te dirá si es por el CI, el ROL o el EMAIL
     })
   }
 }
@@ -81,7 +93,7 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
 export const actualizarUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params
-    const { nombre, apellido, ci, email, password, rol } = req.body
+    const { nombre, apellido, ci, email, password, rol, ubicacion } = req.body
 
     console.log(
       `\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`
@@ -91,6 +103,17 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     let usuario = await Usuario.findById(id)
     if (!usuario) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' })
+    }
+
+    const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (nombre && (!regexNombres.test(nombre) || nombre.length > 30)) {
+      return res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' })
+    }
+    if (apellido && (!regexNombres.test(apellido) || apellido.length > 30)) {
+      return res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' })
+    }
+    if (ci && (!/^\d+$/.test(ci) || ci.length > 8)) {
+      return res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
     }
 
     // Si el admin mandó un CI o Email diferente, verificar que no choque con otro usuario
@@ -114,6 +137,7 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     if (ci !== undefined) datosActualizados.ci = ci
     if (email !== undefined) datosActualizados.email = email
     if (rol !== undefined) datosActualizados.rol = rol
+    if (ubicacion !== undefined) datosActualizados.ubicacion = ubicacion
 
     // TRUCO: Solo actualizamos la contraseña si el frontend nos envió una nueva
     if (password && typeof password === 'string' && password.trim() !== '') {
@@ -141,6 +165,23 @@ export const cambiarEstadoUsuario = async (req: Request, res: Response): Promise
   try {
     const { id } = req.params
     const { estado } = req.body // Recibimos true o false
+
+    // --- NUEVA VALIDACIÓN: Mínimo 1 caja activa ---
+    if (estado === false || String(estado) === 'false') {
+      const usuarioTarget = await Usuario.findById(id);
+      if (usuarioTarget && usuarioTarget.rol.toLowerCase() === 'cajero') {
+        const cajerosActivosRestantes = await Usuario.countDocuments({
+          rol: { $regex: /^cajero$/i },
+          estado: true,
+          _id: { $ne: usuarioTarget._id }
+        });
+        
+        if (cajerosActivosRestantes === 0) {
+          return res.status(400).json({ mensaje: 'Debe existir al menos una caja activa en el sistema.' });
+        }
+      }
+    }
+    // ----------------------------------------------
 
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
       id,

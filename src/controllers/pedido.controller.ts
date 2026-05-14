@@ -29,6 +29,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
     const pedidoPoblado = await Pedido.findById(nuevoPedido._id)
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
+      .populate('usuario', 'nombre apellido')
 
     // 3. AUTOMATIZACIÓN: Cambiar estado de la mesa a 'Ocupada'
     const mesaId = req.body.mesa
@@ -65,11 +66,24 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
   }
 }
 
-export const obtenerPedidos = async (req: Request, res: Response) => {
+export const obtenerPedidos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const pedidos = await Pedido.find()
+    const { hoy, fecha } = req.query
+    const filtro: any = {}
+
+    if (hoy === 'true') {
+      const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
+      const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
+      filtro.createdAt = { $gte: inicioHoy, $lte: finHoy };
+    } else if (fecha) {
+      const inicio = new Date(`${fecha}T00:00:00`);
+      const fin = new Date(`${fecha}T23:59:59.999`);
+      filtro.createdAt = { $gte: inicio, $lte: fin };
+    }
+
+    const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
-      .populate('usuario', 'nombre')
+      .populate('usuario', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
       .sort({ createdAt: -1 }) // Los más recientes primero
 
@@ -133,6 +147,7 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
     const pedidoActualizado = await Pedido.findByIdAndUpdate(id, { estado }, { new: true })
       .populate('mesa', 'numero')
       .populate('detalles.plato', 'nombre precio')
+      .populate('usuario', 'nombre apellido')
 
     if (!pedidoActualizado) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
@@ -147,12 +162,13 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
       io.emit('cocina:actualizar_tablero', pedidoActualizado)
 
       // B) EL EVENTO CLAVE: Si el chef presionó "Terminado/Listos"
-      if (estado === 'Listos') {
+      if (estado === 'ENTREGADO' || estado === 'Listos') {
+        console.log('🔔 [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:', pedidoActualizado._id.toString());
         // Le gritamos al frontend del Mesero para que encienda el badge verde de "¡LISTO!"
         io.emit('mesas:alerta_listo', {
           pedidoId: pedidoActualizado._id.toString(),
-          mesaId: pedidoActualizado.mesa?._id.toString(),
-          mesaNombre: (pedidoActualizado.mesa as any)?.numero
+          mesaId: pedidoActualizado.mesa ? ((pedidoActualizado.mesa as any)._id?.toString() || pedidoActualizado.mesa.toString()) : undefined,
+          mesaNombre: pedidoActualizado.mesa ? ((pedidoActualizado.mesa as any).numero || (pedidoActualizado.mesa as any).name || (pedidoActualizado.mesa as any).nombre || 'Mesa') : '?'
         })
       }
     } catch (socketError) {
@@ -168,5 +184,72 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
     res
       .status(500)
       .json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message })
+  }
+}
+
+export const actualizarPedido = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+    // Agregamos los campos de la pre-cuenta
+    const { total, detalles, clienteNombre, clienteCI, clienteNIT, cajeroAsignado, montoDescuento, montoPropina, subtotalCierre } = req.body
+
+    const pedidoAnterior = await Pedido.findById(id);
+    const updates: any = {};
+    if (total !== undefined) updates.total = total;
+    if (detalles !== undefined) updates.detalles = detalles;
+    
+    if (pedidoAnterior && pedidoAnterior.estado === 'SERVIDO') {
+       updates.estado = 'ABIERTO';
+    }
+    
+    // Guardar los campos de la pre-cuenta (permitido dinámicamente si el modelo usa strict: false o si están definidos)
+    if (clienteNombre !== undefined) updates.clienteNombre = clienteNombre;
+    if (clienteCI !== undefined) updates.clienteCI = clienteCI;
+    if (clienteNIT !== undefined) updates.clienteNIT = clienteNIT;
+    if (cajeroAsignado !== undefined) updates.cajeroAsignado = cajeroAsignado;
+    if (montoDescuento !== undefined) updates.montoDescuento = montoDescuento;
+    if (montoPropina !== undefined) updates.montoPropina = montoPropina;
+    if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre;
+
+    // Actualizamos los platos y el nuevo total del pedido existente
+    const pedidoActualizado = await Pedido.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, strict: false } // strict: false previene que mongoose borre campos no declarados temporalmente
+    )
+      .populate('detalles.plato', 'nombre precio')
+      .populate('mesa', 'numero')
+      .populate('usuario', 'nombre apellido')
+
+    if (!pedidoActualizado) {
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
+    }
+
+    // REPARACIÓN CRÍTICA: Forzar la mesa a Ocupada en BD por si estaba desfasada y notificar a la red
+    if (pedidoActualizado.mesa) {
+      const mesaId = typeof pedidoActualizado.mesa === 'object' ? (pedidoActualizado.mesa as any)._id : pedidoActualizado.mesa;
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Ocupada' });
+      try {
+        getIO().emit('mesas:updated', {
+          id: mesaId.toString(),
+          status: 'Ocupada',
+          name: (pedidoActualizado.mesa as any).numero || 'Mesa'
+        })
+      } catch(e) {}
+    }
+
+    // Avisamos a la cocina en tiempo real que este pedido tiene platos nuevos
+    try { getIO().emit('cocina:actualizar_tablero', pedidoActualizado) } catch (e) {}
+    
+    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
+    if (cajeroAsignado) {
+      try { getIO().emit('caja:nueva_cuenta', pedidoActualizado) } catch (e) {}
+    }
+
+    res.status(200).json(pedidoActualizado)
+  } catch (error) {
+    const err = error as Error
+    res.status(500).json({ mensaje: 'Error al actualizar el pedido', error: err.message })
   }
 }
