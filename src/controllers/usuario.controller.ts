@@ -18,7 +18,7 @@ export const obtenerUsuarios = async (req: Request, res: Response) => {
 // Crear un nuevo usuario (Desde el modal del administrador)
 export const crearUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { nombre, apellido, ci, email, password, rol } = req.body
+    const { nombre, apellido, ci, email, password, rol, ubicacion } = req.body
 
     const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
     if (!regexNombres.test(nombre) || nombre.length > 30) {
@@ -56,7 +56,8 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
       ci,
       email,
       password: passwordHasheada,
-      rol
+      rol,
+      ubicacion
       // El 'estado: true' se pone automáticamente por el modelo
     })
 
@@ -73,7 +74,8 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
         ci: nuevoUsuario.ci,
         email: nuevoUsuario.email,
         rol: nuevoUsuario.rol,
-        estado: nuevoUsuario.estado
+        estado: nuevoUsuario.estado,
+        ubicacion: (nuevoUsuario as any).ubicacion
       }
     })
   } catch (error: any) {
@@ -91,7 +93,7 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
 export const actualizarUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params
-    const { nombre, apellido, ci, email, password, rol } = req.body
+    const { nombre, apellido, ci, email, password, rol, ubicacion } = req.body
 
     console.log(
       `\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`
@@ -135,6 +137,7 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     if (ci !== undefined) datosActualizados.ci = ci
     if (email !== undefined) datosActualizados.email = email
     if (rol !== undefined) datosActualizados.rol = rol
+    if (ubicacion !== undefined) datosActualizados.ubicacion = ubicacion
 
     // TRUCO: Solo actualizamos la contraseña si el frontend nos envió una nueva
     if (password && typeof password === 'string' && password.trim() !== '') {
