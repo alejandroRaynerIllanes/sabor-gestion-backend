@@ -23,6 +23,7 @@ const DetallePedidoSchema = new Schema<IDetallePedido>(
 
 // 2. Interfaz y Esquema para el Pedido principal
 export interface IPedido extends Document {
+  codigo?: string
   fechaHora: Date
   estado: string
   total: number
@@ -39,6 +40,7 @@ export interface IPedido extends Document {
 
 const PedidoSchema = new Schema(
   {
+    codigo: { type: String, unique: true },
     fechaHora: { type: Date, default: Date.now },
     estado: {
       type: String,

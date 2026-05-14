@@ -6,23 +6,9 @@ import { getIO } from '../socket/socket'
 
 export const crearPedido = async (req: Request, res: Response): Promise<void> => {
   try {
-    // 1. Registrar el nuevo pedido
-    const ultimoPedido = await Pedido.findOne().sort({ createdAt: -1 })
-
-    let nuevoNumero = 1
-    if (ultimoPedido && ultimoPedido.codigo) {
-      const partes = ultimoPedido.codigo.split('-')
-      if (partes.length === 2) {
-        const numeroAnterior = parseInt(partes[1], 10)
-        if (!isNaN(numeroAnterior)) {
-          nuevoNumero = numeroAnterior + 1
-        }
-      }
-    }
-
-    const codigoGenerado = `PED-${nuevoNumero.toString().padStart(4, '0')}`
-
-    const nuevoPedido = new Pedido({ ...req.body, codigo: codigoGenerado })
+    // 1. Registrar el nuevo pedido y generar un código seguro basado en su ObjectID
+    const nuevoPedido = new Pedido(req.body)
+    nuevoPedido.codigo = `PED-${String(nuevoPedido._id).slice(-4).toUpperCase()}`
     await nuevoPedido.save()
 
     // 2. Poblar datos para que cocina reciba el nombre del plato y no solo el ID
