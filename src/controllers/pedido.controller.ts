@@ -197,7 +197,8 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (total !== undefined) updates.total = total;
     if (detalles !== undefined) updates.detalles = detalles;
     
-    if (pedidoAnterior && pedidoAnterior.estado === 'ENTREGADO') {
+    // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
+    if (pedidoAnterior && pedidoAnterior.estado === 'ENTREGADO' && detalles !== undefined) {
        updates.estado = 'ABIERTO';
     }
     
