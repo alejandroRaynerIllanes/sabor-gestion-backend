@@ -6,12 +6,11 @@ import mongoose from 'mongoose'
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {
-    // 🚀 ACCESO NATIVO A MONGODB: Evitamos que Mongoose filtre campos ocultos en la lectura
-    const usuarios = await Usuario.collection.find().toArray()
+    // Como 'ubicacion' ya está en el modelo, podemos usar Mongoose normalmente
+    const usuarios = await Usuario.find().select('-password').lean()
     
     // MAPEO: Adaptamos 'ubicacion' de MongoDB al campo 'zona' que requiere el Frontend
     const usuariosMapeados = usuarios.map((u: any) => {
-      delete u.password // Quitamos la contraseña manualmente por seguridad
       return { ...u, id: u._id, _id: u._id, zona: u.ubicacion || u.zona || '' }
     })
     res.status(200).json(usuariosMapeados)
@@ -62,21 +61,16 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
       ci,
       email,
       password: passwordHasheada,
-      rol
+      rol,
+      ubicacion: zona // Ahora Mongoose sí lo guardará automáticamente
       // El 'estado: true' se pone automáticamente por el modelo
     })
 
     // 4. Guardar en MongoDB
     await nuevoUsuario.save()
 
-    // 🚀 OBLIGAR a MongoDB a guardar la zona saltándose a Mongoose
-    if (zona !== undefined) {
-      await Usuario.collection.updateOne({ _id: nuevoUsuario._id }, { $set: { ubicacion: zona } })
-    }
-
     // Consultamos la verdad absoluta
-    const usuarioCreado: any = await Usuario.collection.findOne({ _id: nuevoUsuario._id })
-    if (usuarioCreado) delete usuarioCreado.password;
+    const usuarioCreado: any = await Usuario.findById(nuevoUsuario._id).select('-password').lean()
 
     // 5. Responder al frontend confirmando la creación (sin enviar el password de vuelta)
     res.status(201).json({
@@ -154,11 +148,16 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
       datosActualizados.password = await bcrypt.hash(password, salt)
     }
 
-    // 🚀 INYECCIÓN DIRECTA A MONGODB BYPASSANDO ESQUEMAS
-    await Usuario.collection.updateOne({ _id: new mongoose.Types.ObjectId(id as string) }, { $set: datosActualizados })
+    // Regresamos al método limpio y nativo de Mongoose para actualizar
+    const usuarioActualizado: any = await Usuario.findByIdAndUpdate(
+      id, 
+      { $set: datosActualizados }, 
+      { new: true }
+    ).select('-password').lean()
 
-    const usuarioActualizado: any = await Usuario.collection.findOne({ _id: new mongoose.Types.ObjectId(id as string) })
-    if (usuarioActualizado) delete usuarioActualizado.password;
+    if (!usuarioActualizado) {
+      return res.status(404).json({ mensaje: 'Usuario no encontrado tras actualizar' })
+    }
 
     res.status(200).json({ mensaje: 'Usuario actualizado', usuario: { ...usuarioActualizado, id: usuarioActualizado._id, _id: usuarioActualizado._id, zona: usuarioActualizado?.ubicacion || zona || '' } })
   } catch (error: any) {
