@@ -35,8 +35,15 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
 
     console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha logueado exitosamente.`)
 
+    // Convertir el documento a objeto puro para poder leer campos fuera del esquema como 'ubicacion'
+    const userObj: any = typeof usuarioEncontrado.toObject === 'function' ? usuarioEncontrado.toObject() : usuarioEncontrado;
+
     const token = jwt.sign(
-      { id: usuarioEncontrado._id, rol: usuarioEncontrado.rol },
+      { 
+        id: userObj._id, 
+        rol: userObj.rol,
+        zona: userObj.ubicacion || userObj.zona || ''
+      },
       process.env.JWT_SECRET as string,
       { expiresIn: '8h' }
     )
@@ -45,10 +52,11 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
       mensaje: 'Bienvenido a Sabor & Gestión',
       token: token,
       usuario: {
-        id: usuarioEncontrado._id,
-        nombre: usuarioEncontrado.nombre,
-        apellido: usuarioEncontrado.apellido,
-        rol: usuarioEncontrado.rol
+        id: userObj._id,
+        nombre: userObj.nombre,
+        apellido: userObj.apellido,
+        rol: userObj.rol,
+        zona: userObj.ubicacion || userObj.zona || ''
       }
     })
   } catch (error) {

@@ -6,9 +6,15 @@ import mongoose from 'mongoose'
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {
-    // Excluimos la contraseña para que nunca viaje al frontend por seguridad
-    const usuarios = await Usuario.find().select('-password')
-    res.status(200).json(usuarios)
+    // 🚀 ACCESO NATIVO A MONGODB: Evitamos que Mongoose filtre campos ocultos en la lectura
+    const usuarios = await Usuario.collection.find().toArray()
+    
+    // MAPEO: Adaptamos 'ubicacion' de MongoDB al campo 'zona' que requiere el Frontend
+    const usuariosMapeados = usuarios.map((u: any) => {
+      delete u.password // Quitamos la contraseña manualmente por seguridad
+      return { ...u, id: u._id, _id: u._id, zona: u.ubicacion || u.zona || '' }
+    })
+    res.status(200).json(usuariosMapeados)
   } catch (error) {
     console.error('Error al obtener usuarios:', error)
     res.status(500).json({ mensaje: 'Error al obtener los usuarios' })
@@ -18,7 +24,7 @@ export const obtenerUsuarios = async (req: Request, res: Response) => {
 // Crear un nuevo usuario (Desde el modal del administrador)
 export const crearUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { nombre, apellido, ci, email, password, rol, ubicacion } = req.body
+    const { nombre, apellido, ci, email, password, rol, zona } = req.body
 
     const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
     if (!regexNombres.test(nombre) || nombre.length > 30) {
@@ -56,27 +62,26 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
       ci,
       email,
       password: passwordHasheada,
-      rol,
-      ubicacion
+      rol
       // El 'estado: true' se pone automáticamente por el modelo
     })
 
     // 4. Guardar en MongoDB
     await nuevoUsuario.save()
 
+    // 🚀 OBLIGAR a MongoDB a guardar la zona saltándose a Mongoose
+    if (zona !== undefined) {
+      await Usuario.collection.updateOne({ _id: nuevoUsuario._id }, { $set: { ubicacion: zona } })
+    }
+
+    // Consultamos la verdad absoluta
+    const usuarioCreado: any = await Usuario.collection.findOne({ _id: nuevoUsuario._id })
+    if (usuarioCreado) delete usuarioCreado.password;
+
     // 5. Responder al frontend confirmando la creación (sin enviar el password de vuelta)
     res.status(201).json({
       mensaje: 'Usuario creado exitosamente',
-      usuario: {
-        id: nuevoUsuario._id,
-        nombre: nuevoUsuario.nombre,
-        apellido: nuevoUsuario.apellido,
-        ci: nuevoUsuario.ci,
-        email: nuevoUsuario.email,
-        rol: nuevoUsuario.rol,
-        estado: nuevoUsuario.estado,
-        ubicacion: (nuevoUsuario as any).ubicacion
-      }
+      usuario: { ...usuarioCreado, id: usuarioCreado._id, _id: usuarioCreado._id, zona: usuarioCreado?.ubicacion || zona || '' }
     })
   } catch (error: any) {
     console.error('ERROR DETALLADO:', error)
@@ -93,7 +98,7 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
 export const actualizarUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params
-    const { nombre, apellido, ci, email, password, rol, ubicacion } = req.body
+    const { nombre, apellido, ci, email, password, rol, zona } = req.body
 
     console.log(
       `\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`
@@ -117,15 +122,18 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     }
 
     // Si el admin mandó un CI o Email diferente, verificar que no choque con otro usuario
-    if (email !== usuario.email || ci !== usuario.ci) {
+    const orConditions: any[] = []
+    if (email !== undefined && email !== usuario.email) orConditions.push({ email: email })
+    if (ci !== undefined && ci !== usuario.ci) orConditions.push({ ci: ci })
+    
+    if (orConditions.length > 0) {
       const usuarioExistente = await Usuario.findOne({
-        $or: [{ email: email }, { ci: ci }],
-        _id: { $ne: new mongoose.Types.ObjectId(id as string) } // <-- La corrección está aquí
+        $or: orConditions,
+        _id: { $ne: new mongoose.Types.ObjectId(id as string) }
       })
 
       if (usuarioExistente) {
-        if (usuarioExistente.ci === ci)
-          return res.status(400).json({ mensaje: 'El CI ya está en uso por otro usuario' })
+        if (ci !== undefined && usuarioExistente.ci === ci) return res.status(400).json({ mensaje: 'El CI ya está en uso por otro usuario' })
         return res.status(400).json({ mensaje: 'El correo ya está en uso por otro usuario' })
       }
     }
@@ -137,7 +145,7 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     if (ci !== undefined) datosActualizados.ci = ci
     if (email !== undefined) datosActualizados.email = email
     if (rol !== undefined) datosActualizados.rol = rol
-    if (ubicacion !== undefined) datosActualizados.ubicacion = ubicacion
+    if (zona !== undefined) datosActualizados.ubicacion = zona
 
     // TRUCO: Solo actualizamos la contraseña si el frontend nos envió una nueva
     if (password && typeof password === 'string' && password.trim() !== '') {
@@ -146,12 +154,13 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
       datosActualizados.password = await bcrypt.hash(password, salt)
     }
 
-    // Guardar cambios y devolver el usuario nuevo (new: true)
-    const usuarioActualizado = await Usuario.findByIdAndUpdate(id, datosActualizados, {
-      new: true
-    }).select('-password')
+    // 🚀 INYECCIÓN DIRECTA A MONGODB BYPASSANDO ESQUEMAS
+    await Usuario.collection.updateOne({ _id: new mongoose.Types.ObjectId(id as string) }, { $set: datosActualizados })
 
-    res.status(200).json({ mensaje: 'Usuario actualizado', usuario: usuarioActualizado })
+    const usuarioActualizado: any = await Usuario.collection.findOne({ _id: new mongoose.Types.ObjectId(id as string) })
+    if (usuarioActualizado) delete usuarioActualizado.password;
+
+    res.status(200).json({ mensaje: 'Usuario actualizado', usuario: { ...usuarioActualizado, id: usuarioActualizado._id, _id: usuarioActualizado._id, zona: usuarioActualizado?.ubicacion || zona || '' } })
   } catch (error: any) {
     console.error('Error al actualizar:', error)
     res
@@ -187,7 +196,7 @@ export const cambiarEstadoUsuario = async (req: Request, res: Response): Promise
       id,
       { estado: estado },
       { new: true }
-    ).select('-password')
+    ).select('-password').lean()
 
     if (!usuarioActualizado) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' })
@@ -195,7 +204,7 @@ export const cambiarEstadoUsuario = async (req: Request, res: Response): Promise
 
     res.status(200).json({
       mensaje: `Usuario marcado como ${estado ? 'Activo' : 'Inactivo'}`,
-      usuario: usuarioActualizado
+      usuario: { ...usuarioActualizado, zona: (usuarioActualizado as any).ubicacion }
     })
   } catch (error) {
     console.error('Error al cambiar estado:', error)
