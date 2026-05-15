@@ -54,7 +54,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
 
 export const obtenerPedidos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hoy, fecha } = req.query
+    const { hoy, fecha, mesa, activo, cajero, mesero } = req.query
     const filtro: any = {}
 
     if (hoy === 'true') {
@@ -65,6 +65,19 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       const inicio = new Date(`${fecha}T00:00:00`);
       const fin = new Date(`${fecha}T23:59:59.999`);
       filtro.createdAt = { $gte: inicio, $lte: fin };
+    }
+
+    if (mesa) {
+      filtro.mesa = mesa;
+    }
+    if (activo === 'true') {
+      filtro.estado = { $in: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'SERVIDO'] };
+    }
+    if (cajero) {
+      filtro.cajeroAsignado = cajero;
+    }
+    if (mesero) {
+      filtro.usuario = mesero;
     }
 
     const pedidos = await Pedido.find(filtro)
