@@ -8,9 +8,13 @@ let io: SocketIOServer
 export const initSocket = (httpServer: HTTPServer) => {
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: ['http://localhost:5173', 'http://localhost:5174', 'https://tis-pied.vercel.app'],
+      origin: [
+        'http://localhost:5173',
+        'http://localhost:5174',
+        'https://quirquinita.onrender.com' // <-- Reemplaza o añade la nueva URL aquí
+      ],
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      credentials: true // Recomendado para que funcione el handshake con auth
+      credentials: true
     }
   })
 

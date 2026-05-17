@@ -2,6 +2,7 @@
 import { Request, Response } from 'express'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
+import { getIO } from '../socket/socket'
 
 // 1. Generador de QR (Se mantiene para cuando eligen método QR)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
@@ -29,44 +30,85 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
 // 2. Procesamiento de Pago Final (Conectado a tu Modal)
 export const procesarPagoFinal = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { pedidoId } = req.params;
-    
-    // Recibimos los datos del modal "Procesar Pago"
-    const { 
-      metodoPago, // 'Transferencia', 'Efectivo', 'Tarjeta', 'QR'
-      porcentajeDescuento = 0, 
-      porcentajePropina = 0 
-    } = req.body;
+    const { pedidoId } = req.params
 
-    const pedido = await Pedido.findById(pedidoId);
+    // Recibimos los datos del modal "Procesar Pago"
+    const {
+      metodoPago, // 'Efectivo', 'Tarjeta', 'QR'
+      porcentajeDescuento = 0,
+      porcentajePropina = 0
+    } = req.body
+
+    const pedido = await Pedido.findById(pedidoId)
     if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' });
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
+    }
+
+    if (pedido.estado === 'CERRADO') {
+      res.status(400).json({ mensaje: 'Este pedido ya ha sido pagado y cerrado.' });
       return;
     }
 
-    // A. Cálculos matemáticos basados en tu UI
-    const subtotal = pedido.total; // El total original antes de descuentos
-    const montoDescuento = subtotal * (porcentajeDescuento / 100);
-    const subtotalConDescuento = subtotal - montoDescuento;
-    const montoPropina = subtotalConDescuento * (porcentajePropina / 100);
-    const totalFinal = subtotalConDescuento + montoPropina;
+    if (pedido.estado !== 'ENTREGADO' && pedido.estado !== 'CERRADO') {
+      res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado al cliente.' })
+      return
+    }
+    
+    if (!['Efectivo', 'Tarjeta', 'QR'].includes(metodoPago)) {
+      res.status(400).json({ mensaje: 'Método de pago no permitido. Use Efectivo, Tarjeta o QR.' })
+      return
+    }
+
+    // A. Cálculos matemáticos usando los datos pre-guardados por el mesero
+    const ped: any = pedido; // bypass strict typing to read new fields
+    const subtotal = ped.subtotalCierre || pedido.total || 0;
+    const montoDescuento = ped.montoDescuento || 0;
+    const montoPropina = ped.montoPropina || 0;
+    const totalFinal = subtotal - montoDescuento + montoPropina;
 
     // B. Actualizar el pedido a CERRADO (Pagado)
-    pedido.estado = 'CERRADO';
-    pedido.total = totalFinal; // Actualizamos el total al monto real cobrado
-    
-    // C. Guardar los datos del pago en la BD (Mapeado a tu nuevo modelo)
-    pedido.metodoPago = metodoPago || 'Efectivo'; // Valor por defecto si no llega
-    pedido.montoDescuento = montoDescuento;
-    pedido.montoPropina = montoPropina;
-    pedido.subtotalCierre = subtotal; // Para auditoría, guardamos el original
+    pedido.estado = 'CERRADO'
+    pedido.total = totalFinal // Actualizamos el total al monto real cobrado
 
-    await pedido.save();
+    // C. Guardar los datos del pago en la BD (Mapeado a tu nuevo modelo)
+    ped.metodoPago = metodoPago
+    ped.montoDescuento = montoDescuento
+    ped.montoPropina = montoPropina
+    ped.subtotalCierre = subtotal
+
+    await pedido.save()
 
     // D. ¡MAGIA! Liberamos la mesa para el siguiente cliente
     if (pedido.mesa) {
-      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' });
+      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' })
     }
+
+    // D.2 ¡NUEVO! Notificar por WebSockets para limpiar cocina inmediatamente
+    // D.2 Notificar por WebSockets que el pago fue completado
+  try {
+    const io = getIO()
+
+    io.emit('cocina:actualizar_tablero', pedido)
+
+    if (pedido.mesa) {
+      const mesaLiberada = await Mesa.findById(pedido.mesa)
+
+      io.emit('mesas:updated', {
+        id: pedido.mesa.toString(),
+        status: 'Disponible',
+        name: mesaLiberada?.numero || 'Mesa'
+      })
+
+      io.emit('mesas:pago_completado', {
+        mesaId: pedido.mesa.toString(),
+        mesaNombre: mesaLiberada?.numero || 'Mesa',
+        pedidoId: pedido._id.toString(),
+        mensaje: 'Pago procesado exitosamente'
+      })
+    }
+  } catch (e) {}
+
 
     // E. Responder con la data exacta que necesita tu Modal de "Comprobante de Pago"
     res.status(200).json({
@@ -80,10 +122,9 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
         metodoPago: pedido.metodoPago,
         fecha: new Date()
       }
-    });
-
+    })
   } catch (error) {
-    const err = error as Error;
-    res.status(500).json({ mensaje: 'Error al procesar el pago', error: err.message });
+    const err = error as Error
+    res.status(500).json({ mensaje: 'Error al procesar el pago', error: err.message })
   }
 }

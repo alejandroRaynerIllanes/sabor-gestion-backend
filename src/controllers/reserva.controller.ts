@@ -28,6 +28,16 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       })
     }
 
+    if (!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(nombreCliente)) {
+      return res.status(400).json({
+        mensaje: 'El nombre del cliente solo debe contener letras. Ejemplo: "Maria Lopez"'
+      })
+    }
+
+    if (cantidadPersonas < 1 || cantidadPersonas > 20) {
+      return res.status(400).json({ mensaje: 'El número de personas debe estar entre 1 y 20.' })
+    }
+
     if (!mongoose.Types.ObjectId.isValid(mesaId)) {
       return res.status(400).json({ mensaje: 'El id de la mesa no es válido.' })
     }
@@ -57,7 +67,13 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
 
+    // Generar código único legible RES-XXXX
+    const count = await Reserva.countDocuments()
+    const codigoGenerado = `RES-${String(count + 1).padStart(4, '0')}`
+
+    // RESOLUCIÓN: Mantenemos ambos identificadores
     const nuevaReserva = new Reserva({
+      codigo: codigoGenerado,
       pedidoId: elPedidoIdFormateado,
       fecha: new Date(fechaReserva),
       hora: horaReserva,
@@ -78,8 +94,10 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       .populate('mesa', 'numero ubicacion capacidad estado')
       .populate('usuario', 'nombre apellido email rol')
 
+    // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida
     const reservaFormateada = {
       id: reservaGuardada?._id,
+      codigo: reservaGuardada?.codigo,
       numeroPedido: reservaGuardada?.pedidoId,
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
@@ -115,8 +133,10 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
       .populate('usuario', 'nombre apellido email rol')
       .sort({ createdAt: -1 })
 
+    // RESOLUCIÓN: Devolvemos tanto 'codigo' como 'numeroPedido' en el listado
     const reservasFormateadas = reservas.map((reserva) => ({
       id: reserva._id,
+      codigo: reserva.codigo,
       numeroPedido: reserva.pedidoId,
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
@@ -157,8 +177,16 @@ export const eliminarReserva = async (req: CustomRequest, res: Response) => {
 
     if (reservasRestantes === 0) {
       await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
+      try {
+        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Disponible' })
+      } catch (e) {}
     } else {
       await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+      try {
+        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+      } catch (e) {}
     }
 
     return res.status(200).json({

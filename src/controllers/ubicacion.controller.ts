@@ -61,3 +61,49 @@ export const crearUbicacion = async (req: Request, res: Response) => {
     res.status(500).json({ mensaje: 'Error al crear ubicacion', error: error.message || error })
   }
 }
+
+export const actualizarUbicacion = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const { nombre, name } = req.body
+    const finalName = (nombre || name || '').toString().trim()
+    if (!finalName) return res.status(400).json({ mensaje: 'Nombre de ubicación requerido' })
+
+    // Evitar que al editar se pise el nombre de otra ubicación existente
+    const regex = { $regex: `^${escapeRegex(finalName)}$`, $options: 'i' }
+    const existente = await Ubicacion.findOne({
+      $or: [{ nombre: regex }, { name: regex }],
+      _id: { $ne: id }
+    })
+
+    if (existente) {
+      return res.status(400).json({ mensaje: 'La ubicación ya existe' })
+    }
+
+    const actualizada = await Ubicacion.findByIdAndUpdate(
+      id,
+      { nombre: finalName, name: finalName },
+      { new: true }
+    )
+    if (!actualizada) return res.status(404).json({ mensaje: 'Ubicación no encontrada' })
+
+    res
+      .status(200)
+      .json({ id: actualizada._id, nombre: actualizada.nombre || (actualizada as any).name })
+  } catch (error: any) {
+    res
+      .status(500)
+      .json({ mensaje: 'Error al actualizar ubicación', error: error.message || error })
+  }
+}
+
+export const eliminarUbicacion = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params
+    const eliminada = await Ubicacion.findByIdAndDelete(id)
+    if (!eliminada) return res.status(404).json({ mensaje: 'Ubicación no encontrada' })
+    res.status(200).json({ mensaje: 'Ubicación eliminada correctamente' })
+  } catch (error: any) {
+    res.status(500).json({ mensaje: 'Error al eliminar ubicación', error: error.message || error })
+  }
+}

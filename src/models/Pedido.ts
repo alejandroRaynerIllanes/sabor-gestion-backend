@@ -23,6 +23,7 @@ const DetallePedidoSchema = new Schema<IDetallePedido>(
 
 // 2. Interfaz y Esquema para el Pedido principal
 export interface IPedido extends Document {
+  codigo: string
   fechaHora: Date
   estado: string
   total: number
@@ -39,6 +40,12 @@ export interface IPedido extends Document {
 
 const PedidoSchema = new Schema(
   {
+    codigo: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true
+    },
     fechaHora: { type: Date, default: Date.now },
     estado: {
       type: String,
@@ -52,10 +59,10 @@ const PedidoSchema = new Schema(
     qrUrl: { type: String, required: false },
 
     // Información del pago final (Texto plano para simulación)
-    metodoPago: { 
-      type: String, 
+    metodoPago: {
+      type: String,
       enum: ['Efectivo', 'Tarjeta', 'Transferencia', 'QR', 'Otro'],
-      required: false 
+      required: false
     },
     montoDescuento: { type: Number, default: 0 },
     montoPropina: { type: Number, default: 0 },

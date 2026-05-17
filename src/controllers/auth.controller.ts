@@ -16,45 +16,35 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
     if (!usuarioEncontrado) {
       console.log(` [LOGIN] Falló: Usuario no encontrado en la BD.`)
       res.status(404).json({ mensaje: 'Usuario no encontrado en el sistema' })
-      return;
+      return
     }
 
     if (!usuarioEncontrado.estado) {
-      res.status(403).json({ mensaje: 'Esta cuenta ha sido desactivada. Contacta al administrador.' })
-      return;
+      res
+        .status(403)
+        .json({ mensaje: 'Esta cuenta ha sido desactivada. Contacta al administrador.' })
+      return
     }
 
     const passwordValida = await bcrypt.compare(password, usuarioEncontrado.password)
     if (!passwordValida) {
       console.log(` [LOGIN] Falló: Contraseña incorrecta para ${email}.`)
       res.status(401).json({ mensaje: 'Contraseña incorrecta' })
-      return;
+      return
     }
-
-    // 🛑 BLOQUE DESACTIVADO: Verificación de correo 🛑
-    /*
-    if (!usuarioEncontrado.verificado) {
-      console.log(` [LOGIN] Bloqueado: ${email} no ha verificado su correo. Enviando código...`)
-      try {
-        await codigoService.procesarEnvioDeCodigo(
-          usuarioEncontrado.email, usuarioEncontrado.nombre, usuarioEncontrado.apellido, usuarioEncontrado._id.toString()
-        )
-      } catch (error) { console.error('Error enviando email en login:', error) }
-
-      res.status(403).json({
-        mensaje: 'Debes verificar tu correo antes de ingresar. Te hemos enviado un nuevo código.',
-        requiereVerificacion: true,
-        usuarioId: usuarioEncontrado._id
-      })
-      return;
-    }
-    */
 
     console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha logueado exitosamente.`)
 
+    // Convertir el documento a objeto puro para poder leer campos fuera del esquema como 'ubicacion'
+    const userObj: any = typeof usuarioEncontrado.toObject === 'function' ? usuarioEncontrado.toObject() : usuarioEncontrado;
+
     const token = jwt.sign(
-      { id: usuarioEncontrado._id, rol: usuarioEncontrado.rol },
-      process.env.JWT_SECRET || 'secreto_temporal_de_desarrollo',
+      { 
+        id: userObj._id, 
+        rol: userObj.rol,
+        zona: userObj.ubicacion || userObj.zona || ''
+      },
+      process.env.JWT_SECRET as string,
       { expiresIn: '8h' }
     )
 
@@ -62,10 +52,11 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
       mensaje: 'Bienvenido a Sabor & Gestión',
       token: token,
       usuario: {
-        id: usuarioEncontrado._id,
-        nombre: usuarioEncontrado.nombre,
-        apellido: usuarioEncontrado.apellido,
-        rol: usuarioEncontrado.rol
+        id: userObj._id,
+        nombre: userObj.nombre,
+        apellido: userObj.apellido,
+        rol: userObj.rol,
+        zona: userObj.ubicacion || userObj.zona || ''
       }
     })
   } catch (error) {
@@ -79,8 +70,21 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
     const { nombre, apellido, ci, email, password } = req.body
 
     if (!nombre || !apellido || !ci || !email || !password) {
-      res.status(400).json({ mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password' })
-      return;
+      res.status(400).json({
+        mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password'
+      })
+      return
+    }
+
+    const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
+    if (!regexNombres.test(nombre) || nombre.length > 30) {
+      res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' }); return;
+    }
+    if (!regexNombres.test(apellido) || apellido.length > 30) {
+      res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' }); return;
+    }
+    if (!/^\d+$/.test(ci) || ci.length > 8) {
+      res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' }); return;
     }
 
     const usuarioExistente = await Usuario.findOne({
@@ -90,11 +94,11 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
     if (usuarioExistente) {
       if (usuarioExistente.email === email) {
         res.status(400).json({ mensaje: 'El correo electrónico ya está registrado' })
-        return;
+        return
       }
       if (usuarioExistente.ci === ci) {
         res.status(400).json({ mensaje: 'El CI ya está registrado' })
-        return;
+        return
       }
     }
 
@@ -115,15 +119,6 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
 
     await nuevoUsuario.save()
 
-    // 🛑 BLOQUE DESACTIVADO: Envío de email 🛑
-    /*
-    try {
-      await codigoService.procesarEnvioDeCodigo(
-        nuevoUsuario.email, nuevoUsuario.nombre, nuevoUsuario.apellido, nuevoUsuario._id.toString()
-      )
-    } catch (error) { console.error('Error enviando email:', error) }
-    */
-
     res.status(201).json({
       mensaje: 'Registro exitoso. Ya puedes iniciar sesión.', // Mensaje actualizado
       requiereVerificacion: false, // <-- Lo ponemos en false para que el front no muestre modales raros
@@ -135,7 +130,11 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
   }
 }
 
-// Las funciones verificarCodigo y reenviarCodigo las dejamos intactas. 
+// Las funciones verificarCodigo y reenviarCodigo las dejamos intactas.
 // Como ya nadie entra en ese flujo, simplemente no se usarán, pero no estorban.
-export const verificarCodigo = async (req: Request, res: Response): Promise<void> => { /* ... código original ... */ }
-export const reenviarCodigo = async (req: Request, res: Response): Promise<void> => { /* ... código original ... */ }
+export const verificarCodigo = async (req: Request, res: Response): Promise<void> => {
+  /* ... código original ... */
+}
+export const reenviarCodigo = async (req: Request, res: Response): Promise<void> => {
+  /* ... código original ... */
+}

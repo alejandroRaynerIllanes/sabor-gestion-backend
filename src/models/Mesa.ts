@@ -14,7 +14,7 @@ export interface IMesa extends Document {
 
 const MesaSchema = new Schema(
   {
-    numero: { type: String, required: true, unique: true }, 
+    numero: { type: String, required: true, unique: true },
     capacidad: { type: Number, required: true, min: 1 },
     ubicacion: { type: String, default: 'Salón Principal' },
     ubicacionId: { type: Schema.Types.ObjectId, ref: 'Ubicacion', default: null },
