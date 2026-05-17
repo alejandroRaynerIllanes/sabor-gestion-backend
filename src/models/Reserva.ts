@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IReserva extends Document {
   codigo: string
+  pedidoId: string
   fecha: Date
   hora: string
   clienteNombre: string
@@ -16,6 +17,7 @@ export interface IReserva extends Document {
 const ReservaSchema = new Schema(
   {
     codigo: { type: String, unique: true, required: true },
+    pedidoId: { type: String, required: true, unique: true },
     fecha: { type: Date, required: true },
     hora: { type: String, required: true },
     clienteNombre: { type: String, required: true, trim: true },
