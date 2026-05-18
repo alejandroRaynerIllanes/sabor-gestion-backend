@@ -1,3 +1,4 @@
+//src/models/Reserva.ts
 import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IReserva extends Document {

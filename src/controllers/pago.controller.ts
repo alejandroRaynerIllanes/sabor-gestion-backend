@@ -11,7 +11,7 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
     const pedido = await Pedido.findById(pedidoId)
 
     if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' }) // Cambiado msg por mensaje para consistencia
+      res.status(404).json({ mensaje: 'Pedido no encontrado' }) 
       return
     }
 
@@ -61,7 +61,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     }
 
     // A. Cálculos matemáticos usando los datos pre-guardados por el mesero
-    const ped: any = pedido; // bypass strict typing to read new fields
+    const ped: any = pedido; // Bypass strict typing to read new fields
     const subtotal = ped.subtotalCierre || pedido.total || 0;
     const montoDescuento = ped.montoDescuento || 0;
     const montoPropina = ped.montoPropina || 0;
@@ -69,9 +69,9 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     // B. Actualizar el pedido a CERRADO (Pagado)
     pedido.estado = 'CERRADO'
-    pedido.total = totalFinal // Actualizamos el total al monto real cobrado
+    pedido.total = totalFinal 
 
-    // C. Guardar los datos del pago en la BD (Mapeado a tu nuevo modelo)
+    // C. Guardar los datos del pago en la BD 
     ped.metodoPago = metodoPago
     ped.montoDescuento = montoDescuento
     ped.montoPropina = montoPropina
@@ -84,33 +84,36 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' })
     }
 
-    // D.2 ¡NUEVO! Notificar por WebSockets para limpiar cocina inmediatamente
-    // D.2 Notificar por WebSockets que el pago fue completado
-  try {
-    const io = getIO()
+    // E. Notificar por WebSockets para limpiar pantallas inmediatamente
+    try {
+      const io = getIO()
 
-    io.emit('cocina:actualizar_tablero', pedido)
+      // 1. Avisar a cocina para que quite la tarjeta si es que seguía ahí
+      io.emit('cocina:actualizar_tablero', pedido)
 
-    if (pedido.mesa) {
-      const mesaLiberada = await Mesa.findById(pedido.mesa)
+      if (pedido.mesa) {
+        const mesaLiberada = await Mesa.findById(pedido.mesa)
 
-      io.emit('mesas:updated', {
-        id: pedido.mesa.toString(),
-        status: 'Disponible',
-        name: mesaLiberada?.numero || 'Mesa'
-      })
+        // 2. Avisar a todos los meseros que la mesa vuelve a estar Libre (Verde)
+        io.emit('mesas:updated', {
+          id: pedido.mesa.toString(),
+          status: 'Disponible',
+          name: mesaLiberada?.numero || 'Mesa'
+        })
 
-      io.emit('mesas:pago_completado', {
-        mesaId: pedido.mesa.toString(),
-        mesaNombre: mesaLiberada?.numero || 'Mesa',
-        pedidoId: pedido._id.toString(),
-        mensaje: 'Pago procesado exitosamente'
-      })
+        // 3. Alerta específica de pago completado (Útil para cerrar modales en Frontend)
+        io.emit('mesas:pago_completado', {
+          mesaId: pedido.mesa.toString(),
+          mesaNombre: mesaLiberada?.numero || 'Mesa',
+          pedidoId: pedido._id.toString(),
+          mensaje: 'Pago procesado exitosamente'
+        })
+      }
+    } catch (socketError) {
+      console.warn('Pago guardado, pero falló la emisión del WebSocket:', socketError)
     }
-  } catch (e) {}
 
-
-    // E. Responder con la data exacta que necesita tu Modal de "Comprobante de Pago"
+    // F. Responder con la data exacta que necesita tu Modal de "Comprobante de Pago"
     res.status(200).json({
       mensaje: 'Pago procesado exitosamente',
       comprobante: {
@@ -119,7 +122,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
         descuentoAplicado: montoDescuento,
         propinaAplicada: montoPropina,
         totalPagado: totalFinal,
-        metodoPago: pedido.metodoPago,
+        metodoPago: ped.metodoPago,
         fecha: new Date()
       }
     })
