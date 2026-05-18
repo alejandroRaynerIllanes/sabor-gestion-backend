@@ -28,30 +28,32 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
 }
 
 // 2. Procesamiento de Pago Final (Conectado a tu Modal)
+// 2. Procesamiento de Pago Final (Conectado a tu Modal)
 export const procesarPagoFinal = async (req: Request, res: Response): Promise<void> => {
   try {
     const { pedidoId } = req.params
 
-    // Recibimos los datos del modal "Procesar Pago"
     const {
-      metodoPago, // 'Efectivo', 'Tarjeta', 'QR'
+      metodoPago, 
       porcentajeDescuento = 0,
       porcentajePropina = 0
     } = req.body
 
-    const pedido = await Pedido.findById(pedidoId)
+    // 1. CORRECCIÓN: Hacemos populate del usuario (Mesero) para saber quién tomó la orden
+    const pedido = await Pedido.findById(pedidoId).populate('usuario', 'nombre apellido')
+    
     if (!pedido) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
     }
 
     if (pedido.estado === 'CERRADO') {
-      res.status(400).json({ mensaje: 'Este pedido ya ha sido pagado y cerrado.' });
-      return;
+      res.status(400).json({ mensaje: 'Este pedido ya ha sido pagado y cerrado.' })
+      return
     }
 
     if (pedido.estado !== 'ENTREGADO' && pedido.estado !== 'CERRADO') {
-      res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado al cliente.' })
+      res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado.' })
       return
     }
     
@@ -60,18 +62,15 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       return
     }
 
-    // A. Cálculos matemáticos usando los datos pre-guardados por el mesero
-    const ped: any = pedido; // Bypass strict typing to read new fields
-    const subtotal = ped.subtotalCierre || pedido.total || 0;
-    const montoDescuento = ped.montoDescuento || 0;
-    const montoPropina = ped.montoPropina || 0;
-    const totalFinal = subtotal - montoDescuento + montoPropina;
+    const ped: any = pedido
+    const subtotal = ped.subtotalCierre || pedido.total || 0
+    const montoDescuento = ped.montoDescuento || 0
+    const montoPropina = ped.montoPropina || 0
+    const totalFinal = subtotal - montoDescuento + montoPropina
 
-    // B. Actualizar el pedido a CERRADO (Pagado)
     pedido.estado = 'CERRADO'
     pedido.total = totalFinal 
 
-    // C. Guardar los datos del pago en la BD 
     ped.metodoPago = metodoPago
     ped.montoDescuento = montoDescuento
     ped.montoPropina = montoPropina
@@ -79,29 +78,21 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     await pedido.save()
 
-    // D. ¡MAGIA! Liberamos la mesa para el siguiente cliente
     if (pedido.mesa) {
       await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' })
     }
 
-    // E. Notificar por WebSockets para limpiar pantallas inmediatamente
     try {
       const io = getIO()
-
-      // 1. Avisar a cocina para que quite la tarjeta si es que seguía ahí
       io.emit('cocina:actualizar_tablero', pedido)
 
       if (pedido.mesa) {
         const mesaLiberada = await Mesa.findById(pedido.mesa)
-
-        // 2. Avisar a todos los meseros que la mesa vuelve a estar Libre (Verde)
         io.emit('mesas:updated', {
           id: pedido.mesa.toString(),
           status: 'Disponible',
           name: mesaLiberada?.numero || 'Mesa'
         })
-
-        // 3. Alerta específica de pago completado (Útil para cerrar modales en Frontend)
         io.emit('mesas:pago_completado', {
           mesaId: pedido.mesa.toString(),
           mesaNombre: mesaLiberada?.numero || 'Mesa',
@@ -113,11 +104,16 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       console.warn('Pago guardado, pero falló la emisión del WebSocket:', socketError)
     }
 
-    // F. Responder con la data exacta que necesita tu Modal de "Comprobante de Pago"
+    // 2. CORRECCIÓN: Extraemos el nombre real del mesero
+    const meseroNombre = pedido.usuario 
+      ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim() 
+      : 'Sin mesero';
+
     res.status(200).json({
       mensaje: 'Pago procesado exitosamente',
       comprobante: {
         pedidoId: pedido._id,
+        meseroNombre: meseroNombre, // <-- AHORA SÍ VIAJA EL NOMBRE DEL MESERO AL FRONTEND
         subtotal: subtotal,
         descuentoAplicado: montoDescuento,
         propinaAplicada: montoPropina,
