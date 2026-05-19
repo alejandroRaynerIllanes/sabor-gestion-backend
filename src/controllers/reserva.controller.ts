@@ -1,23 +1,200 @@
-import { Request, Response } from 'express'
+//src/controllers/reserva.controller.ts
+import { Response } from 'express'
+import mongoose from 'mongoose'
 import Reserva from '../models/Reserva'
+import Mesa from '../models/Mesa'
+import { getIO } from '../socket/socket'
+import { CustomRequest } from '../middlewares/auth.middleware'
+import Contador from '../models/Contador'
 
-export const crearReserva = async (req: Request, res: Response) => {
+export const crearReserva = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
-    const nuevaReserva = new Reserva(req.body)
+    const { mesa, tableId, date, fecha, time, hora, clientName, guestCount, vip } = req.body
+
+    const mesaId = mesa || tableId
+    const fechaReserva = date || fecha
+    const horaReserva = time || hora
+    const nombreCliente = clientName
+    const cantidadPersonas = guestCount
+    const usuarioId = req.usuario?.id
+
+    if (!usuarioId) {
+      return res.status(401).json({ mensaje: 'Usuario no autenticado.' })
+    }
+
+    if (!mesaId || !fechaReserva || !horaReserva || !nombreCliente || !cantidadPersonas) {
+      return res.status(400).json({
+        mensaje:
+          'Faltan datos obligatorios: mesa/tableId, date/fecha, time/hora, clientName y guestCount.'
+      })
+    }
+
+    if (!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(nombreCliente)) {
+      return res.status(400).json({
+        mensaje: 'El nombre del cliente solo debe contener letras. Ejemplo: "Maria Lopez"'
+      })
+    }
+
+    if (cantidadPersonas < 1 || cantidadPersonas > 20) {
+      return res.status(400).json({ mensaje: 'El número de personas debe estar entre 1 y 20.' })
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(mesaId)) {
+      return res.status(400).json({ mensaje: 'El id de la mesa no es válido.' })
+    }
+
+    const mesaEncontrada = await Mesa.findById(mesaId)
+    if (!mesaEncontrada) {
+      return res.status(404).json({ mensaje: 'La mesa no existe en la base de datos.' })
+    }
+
+    const reservaExistente = await Reserva.findOne({
+      mesa: mesaId,
+      fecha: new Date(fechaReserva),
+      hora: horaReserva
+    })
+
+    if (reservaExistente) {
+      return res.status(409).json({
+        mensaje: 'Ya existe una reserva para esa mesa en esa fecha y hora.'
+      })
+    }
+    
+    const contadorDoc: any = await Contador.findOneAndUpdate(
+      { nombre_secuencia: 'reservas_restaurante' },
+      { $inc: { secuencia: 1 } },
+      { new: true, upsert: true } // Si no existe, lo crea y le pone 1
+    )
+
+    const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
+
+    // Generar código único legible RES-XXXX
+    const count = await Reserva.countDocuments()
+    const codigoGenerado = `RES-${String(count + 1).padStart(4, '0')}`
+
+    // RESOLUCIÓN: Mantenemos ambos identificadores
+    const nuevaReserva = new Reserva({
+      codigo: codigoGenerado,
+      pedidoId: elPedidoIdFormateado,
+      fecha: new Date(fechaReserva),
+      hora: horaReserva,
+      clienteNombre: nombreCliente,
+      cantidadPersonas,
+      vip: Boolean(vip),
+      mesa: mesaId,
+      usuario: usuarioId
+    })
+
     await nuevaReserva.save()
-    res.status(201).json(nuevaReserva)
+
+    // 1. Lógica de clonD: Actualizamos el estado de la mesa a 'Reservada'
+    await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+
+    // 2. Lógica de clonD: Hacemos el populate para tener toda la info
+    const reservaGuardada = await Reserva.findById(nuevaReserva._id)
+      .populate('mesa', 'numero ubicacion capacidad estado')
+      .populate('usuario', 'nombre apellido email rol')
+
+    // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida
+    const reservaFormateada = {
+      id: reservaGuardada?._id,
+      codigo: reservaGuardada?.codigo,
+      numeroPedido: reservaGuardada?.pedidoId,
+      clientName: reservaGuardada?.clienteNombre,
+      guestCount: reservaGuardada?.cantidadPersonas,
+      date: reservaGuardada?.fecha,
+      time: reservaGuardada?.hora,
+      vip: reservaGuardada?.vip,
+      mesa: reservaGuardada?.mesa,
+      usuario: reservaGuardada?.usuario,
+      createdAt: reservaGuardada?.createdAt
+    }
+
+    // 3. Lógica de Gustavo: Emitimos la reserva por WebSockets (pero con los datos formateados)
+    try {
+      getIO().emit('nueva_reserva', reservaFormateada)
+
+      // Emitimos también que la mesa se actualizó para que en el mapa cambie a "Reservada" en tiempo real
+      getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+    } catch (socketError) {
+      console.error('Socket no inicializado o error al emitir:', socketError)
+    }
+
+    return res.status(201).json(reservaFormateada)
   } catch (error) {
-    res.status(500).json({ mensaje: 'Error al crear la reserva', error })
+    console.error('Error al crear la reserva:', error)
+    return res.status(500).json({ mensaje: 'Error al crear la reserva', error })
   }
 }
 
-export const obtenerReservas = async (req: Request, res: Response) => {
+export const obtenerReservas = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
     const reservas = await Reserva.find()
-      .populate('mesa', 'numero ubicacion')
-      .populate('usuario', 'nombre apellido')
-    res.status(200).json(reservas)
+      .populate('mesa', 'numero ubicacion capacidad estado')
+      .populate('usuario', 'nombre apellido email rol')
+      .sort({ createdAt: -1 })
+
+    // RESOLUCIÓN: Devolvemos tanto 'codigo' como 'numeroPedido' en el listado
+    const reservasFormateadas = reservas.map((reserva) => ({
+      id: reserva._id,
+      codigo: reserva.codigo,
+      numeroPedido: reserva.pedidoId,
+      clientName: reserva.clienteNombre,
+      guestCount: reserva.cantidadPersonas,
+      date: reserva.fecha,
+      time: reserva.hora,
+      vip: reserva.vip,
+      mesa: reserva.mesa,
+      usuario: reserva.usuario,
+      createdAt: reserva.createdAt
+    }))
+
+    return res.status(200).json(reservasFormateadas)
   } catch (error) {
-    res.status(500).json({ mensaje: 'Error al obtener las reservas', error })
+    console.error('Error al obtener las reservas:', error)
+    return res.status(500).json({ mensaje: 'Error al obtener las reservas', error })
+  }
+}
+
+export const eliminarReserva = async (req: CustomRequest, res: Response) => {
+  try {
+    const id = String(req.params.id)
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ mensaje: 'El id de la reserva no es válido.' })
+    }
+
+    const reserva = await Reserva.findById(id)
+
+    if (!reserva) {
+      return res.status(404).json({ mensaje: 'Reserva no encontrada.' })
+    }
+
+    const mesaId = reserva.mesa
+
+    await Reserva.findByIdAndDelete(id)
+
+    const reservasRestantes = await Reserva.countDocuments({ mesa: mesaId })
+
+    if (reservasRestantes === 0) {
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
+      try {
+        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Disponible' })
+      } catch (e) {}
+    } else {
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+      try {
+        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+      } catch (e) {}
+    }
+
+    return res.status(200).json({
+      mensaje: 'Reserva eliminada correctamente.'
+    })
+  } catch (error) {
+    console.error('Error al eliminar la reserva:', error)
+    return res.status(500).json({ mensaje: 'Error al eliminar la reserva', error })
   }
 }

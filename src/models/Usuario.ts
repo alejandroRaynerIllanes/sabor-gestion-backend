@@ -9,6 +9,8 @@ export interface IUsuario extends Document {
   password: string
   rol: string
   estado: boolean // <-- Es buena práctica tenerlo en el modelo
+  verificado: boolean
+  ubicacion?: string
 }
 
 const UsuarioSchema = new Schema(
@@ -23,7 +25,9 @@ const UsuarioSchema = new Schema(
       enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero', 'Cliente'],
       required: true
     },
-    estado: { type: Boolean, default: true } // Por defecto un usuario nuevo está activo
+    ubicacion: { type: String, required: false },
+    estado: { type: Boolean, default: true }, // Por defecto un usuario nuevo está activo
+    verificado: { type: Boolean, default: true }
   },
   {
     timestamps: true,
