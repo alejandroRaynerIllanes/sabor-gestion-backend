@@ -1,3 +1,4 @@
+//src/models/Contador.ts
 import mongoose, { Schema } from 'mongoose'
 
 const ContadorSchema = new Schema({
