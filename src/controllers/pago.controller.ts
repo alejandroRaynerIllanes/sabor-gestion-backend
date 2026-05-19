@@ -4,7 +4,7 @@ import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 
-// 1. Generador de QR (Se mantiene para cuando eligen método QR)
+// 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
     const { pedidoId } = req.params
@@ -28,7 +28,6 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
 }
 
 // 2. Procesamiento de Pago Final (Conectado a tu Modal)
-// 2. Procesamiento de Pago Final (Conectado a tu Modal)
 export const procesarPagoFinal = async (req: Request, res: Response): Promise<void> => {
   try {
     const { pedidoId } = req.params
@@ -39,7 +38,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       porcentajePropina = 0
     } = req.body
 
-    // 1. CORRECCIÓN: Hacemos populate del usuario (Mesero) para saber quién tomó la orden
+    // Hacemos populate del usuario (Mesero) para saber quién tomó la orden
     const pedido = await Pedido.findById(pedidoId).populate('usuario', 'nombre apellido')
     
     if (!pedido) {
@@ -104,7 +103,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       console.warn('Pago guardado, pero falló la emisión del WebSocket:', socketError)
     }
 
-    // 2. CORRECCIÓN: Extraemos el nombre real del mesero
+    // Extraemos el nombre real del mesero
     const meseroNombre = pedido.usuario 
       ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim() 
       : 'Sin mesero';
@@ -125,5 +124,31 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al procesar el pago', error: err.message })
+  }
+}
+
+// 3. NUEVO: Simulador de Pago desde Celular (QR Dinámico)
+export const simularPagoQR = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { pedidoId } = req.params
+
+    // Emitimos el WebSocket avisando a la Caja que alguien acaba de pagar por QR
+    try {
+      const io = getIO()
+      io.emit('caja:pago_confirmado', {
+        pedidoId,
+        mensaje: 'Transferencia QR recibida',
+        fecha: new Date()
+      })
+    } catch (socketError) {
+      console.warn('Falló la emisión del WebSocket de simulación:', socketError)
+    }
+
+    res.status(200).json({ 
+      exito: true, 
+      mensaje: 'Simulación de pago exitosa. Notificando a la caja...' 
+    })
+  } catch (error) {
+    res.status(500).json({ mensaje: 'Error al simular el pago' })
   }
 }
