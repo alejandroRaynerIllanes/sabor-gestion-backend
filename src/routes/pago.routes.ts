@@ -1,15 +1,18 @@
 // src/routes/pago.routes.ts
 import { Router } from 'express'
-import { generarPagoQR, procesarPagoFinal } from '../controllers/pago.controller' // <-- Importamos la nueva función
+import { generarPagoQR, procesarPagoFinal, simularPagoQR } from '../controllers/pago.controller' 
 import { verificarToken } from '../middlewares/auth.middleware'
 import { permitirRoles } from '../middlewares/rol.middleware'
 
 const router = Router()
 
-// 1. Ruta para cuando el cliente quiere pagar con QR
+// 1. Ruta para cuando el cliente quiere pagar con QR estático (Opcional si mantienes el anterior)
 router.post('/generar-qr/:pedidoId', verificarToken, generarPagoQR)
 
-// 2. NUEVA RUTA: La que conecta con tu botón naranja de "Confirmar Pago"
-router.post('/:pedidoId/procesar', verificarToken, permitirRoles('Cajero', 'Administrador'),procesarPagoFinal)
+// 2. Ruta principal que conecta con tu botón naranja de "Confirmar Pago"
+router.post('/:pedidoId/procesar', verificarToken, permitirRoles('Cajero', 'Administrador'), procesarPagoFinal)
+
+// 3. NUEVA RUTA PÚBLICA: Escucha la señal del celular simulado (Sin verificarToken)
+router.post('/notificar-qr/:pedidoId', simularPagoQR)
 
 export default router
