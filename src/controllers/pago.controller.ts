@@ -3,7 +3,7 @@ import { Request, Response } from 'express'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
-
+import nodemailer from 'nodemailer'
 // 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -150,5 +150,131 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
     })
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al simular el pago' })
+  }
+}
+// 4. NUEVO: Enviar recibo detallado por correo electrónico
+export const enviarReciboCorreo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { pedidoId } = req.params;
+    // AHORA RECIBIMOS LOS DATOS DESDE EL FRONTEND
+    const { email, clienteNombre, clienteCI } = req.body; 
+
+    if (!email) {
+      res.status(400).json({ mensaje: 'Debe proporcionar un correo electrónico' });
+      return;
+    }
+
+    const pedido = await Pedido.findById(pedidoId)
+      .populate('usuario', 'nombre apellido')
+      .populate('mesa')
+      .populate('detalles.plato', 'nombre precio');
+    
+    if (!pedido) {
+      res.status(404).json({ mensaje: 'Pedido no encontrado' });
+      return;
+    }
+
+    const ped: any = pedido;
+    const codigo = ped.codigo || `PED-${String(ped._id).slice(-4).toUpperCase()}`;
+    const subtotal = ped.subtotalCierre || ped.total || 0;
+    const descuento = ped.montoDescuento || 0;
+    const propina = ped.montoPropina || 0;
+    const totalFinal = subtotal - descuento + propina;
+    
+    const mesaNombre = ped.mesa?.numero || 'Barra';
+    const meseroNombre = ped.usuario ? `${ped.usuario.nombre} ${ped.usuario.apellido || ''}`.trim() : 'Mesero';
+    const fecha = new Date().toLocaleString('es-BO');
+
+    // USAMOS LOS DATOS QUE NOS MANDÓ LA PANTALLA (o valores por defecto si fallan)
+    const finalClienteNombre = clienteNombre || ped.clienteNombre || 'Consumidor Final';
+    const finalClienteCI = clienteCI || ped.clienteCI || ped.clienteNIT || 'S/N';
+
+    // 1. Armamos las filas de la tabla de consumo dinámicamente
+    let itemsHtml = '';
+    const detalles = ped.detalles || ped.items || [];
+    
+    detalles.forEach((item: any) => {
+      const nombre = item.nombre || item.plato?.nombre || 'Plato';
+      const cantidad = item.cantidad || 1;
+      const pu = (item.precioUnitario || item.plato?.precio || 0).toFixed(2);
+      const subt = (item.subtotal || (parseFloat(pu) * cantidad)).toFixed(2);
+      
+      itemsHtml += `
+        <tr>
+          <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0;">${cantidad}</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0;">${nombre}</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">${pu}</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">${subt}</td>
+        </tr>
+      `;
+    });
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER, 
+        pass: process.env.EMAIL_PASS  
+      }
+    });
+
+    // 2. Diseño del Ticket estilo "Impresora"
+    const mailOptions = {
+      from: `"Sabor & Gestión" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `Comprobante de Pago - ${codigo}`,
+      html: `
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 420px; margin: auto; padding: 30px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff; color: #374151; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+          
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #4B2E2D; margin: 0; font-size: 24px; font-weight: 900;">SABOR & GESTIÓN</h2>
+            <p style="margin: 5px 0 0 0; color: #6B7280; font-size: 14px;">Comprobante de Pago</p>
+            <p style="margin: 5px 0 0 0; font-weight: bold; color: #D96C4A;">Pedido: ${codigo}</p>
+          </div>
+
+          <div style="font-size: 13px; line-height: 1.6; margin-bottom: 20px;">
+            <p style="margin: 0;"><strong>Mesa:</strong> ${mesaNombre}</p>
+            <p style="margin: 0;"><strong>Mesero:</strong> ${meseroNombre}</p>
+            <p style="margin: 0;"><strong>Cliente:</strong> ${finalClienteNombre}</p>
+            <p style="margin: 0;"><strong>CI/NIT:</strong> ${finalClienteCI}</p>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb;">
+                <th style="text-align: left; padding-bottom: 8px; color: #9CA3AF; font-size: 11px; text-transform: uppercase;">Cant</th>
+                <th style="text-align: left; padding-bottom: 8px; color: #9CA3AF; font-size: 11px; text-transform: uppercase;">Descripción</th>
+                <th style="text-align: right; padding-bottom: 8px; color: #9CA3AF; font-size: 11px; text-transform: uppercase;">P.U</th>
+                <th style="text-align: right; padding-bottom: 8px; color: #9CA3AF; font-size: 11px; text-transform: uppercase;">Subt</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="text-align: right; font-size: 13px; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px; margin-bottom: 15px;">
+            <p style="margin: 3px 0;">Subtotal: <span style="display: inline-block; width: 80px;">Bs. ${subtotal.toFixed(2)}</span></p>
+            ${descuento > 0 ? `<p style="margin: 3px 0; color: #059669;">Descuento: <span style="display: inline-block; width: 80px;">- Bs. ${descuento.toFixed(2)}</span></p>` : ''}
+            ${propina > 0 ? `<p style="margin: 3px 0; color: #D96C4A;">Propina: <span style="display: inline-block; width: 80px;">+ Bs. ${propina.toFixed(2)}</span></p>` : ''}
+            <h3 style="margin: 10px 0 0 0; color: #111827; font-size: 18px;">TOTAL FINAL: <span style="display: inline-block; width: 100px;">Bs. ${totalFinal.toFixed(2)}</span></h3>
+          </div>
+
+          <div style="font-size: 12px; color: #6B7280; text-align: center;">
+            <p style="margin: 2px 0;"><strong>Método de Pago:</strong> ${ped.metodoPago || 'Efectivo'}</p>
+            <p style="margin: 2px 0;"><strong>Fecha:</strong> ${fecha}</p>
+            <br/>
+            <p style="margin: 0; font-weight: bold; color: #4B2E2D; font-size: 14px;">¡Gracias por su preferencia!</p>
+          </div>
+
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ mensaje: 'Recibo enviado por correo exitosamente' });
+  } catch (error) {
+    console.error('Error al enviar correo:', error);
+    res.status(500).json({ mensaje: 'Error al enviar el correo' });
   }
 }

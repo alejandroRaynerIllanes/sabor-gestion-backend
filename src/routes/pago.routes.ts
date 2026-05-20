@@ -1,6 +1,6 @@
 // src/routes/pago.routes.ts
 import { Router } from 'express'
-import { generarPagoQR, procesarPagoFinal, simularPagoQR } from '../controllers/pago.controller' 
+import { generarPagoQR, procesarPagoFinal, simularPagoQR, enviarReciboCorreo } from '../controllers/pago.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
 import { permitirRoles } from '../middlewares/rol.middleware'
 
@@ -14,5 +14,7 @@ router.post('/:pedidoId/procesar', verificarToken, permitirRoles('Cajero', 'Admi
 
 // 3. NUEVA RUTA PÚBLICA: Escucha la señal del celular simulado (Sin verificarToken)
 router.post('/notificar-qr/:pedidoId', simularPagoQR)
+
+router.post('/:pedidoId/enviar-recibo', verificarToken, permitirRoles('Cajero', 'Administrador'), enviarReciboCorreo)
 
 export default router
