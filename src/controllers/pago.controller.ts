@@ -153,50 +153,52 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
 // 4. NUEVO: Enviar recibo detallado por correo electrónico
 export const enviarReciboCorreo = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { pedidoId } = req.params;
+    const { pedidoId } = req.params
     // AHORA RECIBIMOS LOS DATOS DESDE EL FRONTEND
-    const { email, clienteNombre, clienteCI } = req.body; 
+    const { email, clienteNombre, clienteCI } = req.body
 
     if (!email) {
-      res.status(400).json({ mensaje: 'Debe proporcionar un correo electrónico' });
-      return;
+      res.status(400).json({ mensaje: 'Debe proporcionar un correo electrónico' })
+      return
     }
 
     const pedido = await Pedido.findById(pedidoId)
       .populate('usuario', 'nombre apellido')
       .populate('mesa')
-      .populate('detalles.plato', 'nombre precio');
-    
+      .populate('detalles.plato', 'nombre precio')
+
     if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' });
-      return;
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
     }
 
-    const ped: any = pedido;
-    const codigo = ped.codigo || `PED-${String(ped._id).slice(-4).toUpperCase()}`;
-    const subtotal = ped.subtotalCierre || ped.total || 0;
-    const descuento = ped.montoDescuento || 0;
-    const propina = ped.montoPropina || 0;
-    const totalFinal = subtotal - descuento + propina;
-    
-    const mesaNombre = ped.mesa?.numero || 'Barra';
-    const meseroNombre = ped.usuario ? `${ped.usuario.nombre} ${ped.usuario.apellido || ''}`.trim() : 'Mesero';
-    const fecha = new Date().toLocaleString('es-BO');
+    const ped: any = pedido
+    const codigo = ped.codigo || `PED-${String(ped._id).slice(-4).toUpperCase()}`
+    const subtotal = ped.subtotalCierre || ped.total || 0
+    const descuento = ped.montoDescuento || 0
+    const propina = ped.montoPropina || 0
+    const totalFinal = subtotal - descuento + propina
+
+    const mesaNombre = ped.mesa?.numero || 'Barra'
+    const meseroNombre = ped.usuario
+      ? `${ped.usuario.nombre} ${ped.usuario.apellido || ''}`.trim()
+      : 'Mesero'
+    const fecha = new Date().toLocaleString('es-BO')
 
     // USAMOS LOS DATOS QUE NOS MANDÓ LA PANTALLA (o valores por defecto si fallan)
-    const finalClienteNombre = clienteNombre || ped.clienteNombre || 'Consumidor Final';
-    const finalClienteCI = clienteCI || ped.clienteCI || ped.clienteNIT || 'S/N';
+    const finalClienteNombre = clienteNombre || ped.clienteNombre || 'Consumidor Final'
+    const finalClienteCI = clienteCI || ped.clienteCI || ped.clienteNIT || 'S/N'
 
     // 1. Armamos las filas de la tabla de consumo dinámicamente
-    let itemsHtml = '';
-    const detalles = ped.detalles || ped.items || [];
-    
+    let itemsHtml = ''
+    const detalles = ped.detalles || ped.items || []
+
     detalles.forEach((item: any) => {
-      const nombre = item.nombre || item.plato?.nombre || 'Plato';
-      const cantidad = item.cantidad || 1;
-      const pu = (item.precioUnitario || item.plato?.precio || 0).toFixed(2);
-      const subt = (item.subtotal || (parseFloat(pu) * cantidad)).toFixed(2);
-      
+      const nombre = item.nombre || item.plato?.nombre || 'Plato'
+      const cantidad = item.cantidad || 1
+      const pu = (item.precioUnitario || item.plato?.precio || 0).toFixed(2)
+      const subt = (item.subtotal || parseFloat(pu) * cantidad).toFixed(2)
+
       itemsHtml += `
         <tr>
           <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0;">${cantidad}</td>
@@ -204,16 +206,16 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
           <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">${pu}</td>
           <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">${subt}</td>
         </tr>
-      `;
-    });
+      `
+    })
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER, 
-        pass: process.env.EMAIL_PASS  
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
       }
-    });
+    })
 
     // 2. Diseño del Ticket estilo "Impresora"
     const mailOptions = {
@@ -266,13 +268,13 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
 
         </div>
       `
-    };
+    }
 
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions)
 
-    res.status(200).json({ mensaje: 'Recibo enviado por correo exitosamente' });
+    res.status(200).json({ mensaje: 'Recibo enviado por correo exitosamente' })
   } catch (error) {
-    console.error('Error al enviar correo:', error);
-    res.status(500).json({ mensaje: 'Error al enviar el correo' });
+    console.error('Error al enviar correo:', error)
+    res.status(500).json({ mensaje: 'Error al enviar el correo' })
   }
 }
