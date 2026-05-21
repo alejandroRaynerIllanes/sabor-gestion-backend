@@ -60,10 +60,10 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
 
     // 🔥 Endpoint para consultar los Reportes de Cierre reales de la BD
     if (reportesCierre === 'true') {
-      const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
-      const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
+      const limite = new Date(); 
+      limite.setHours(limite.getHours() - 48); // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
       const cierres = await CierreCaja.find({ 
-        fechaCierre: { $gte: inicioHoy, $lte: finHoy } 
+        fechaCierre: { $gte: limite } 
       }).sort({ fechaCierre: -1 });
       res.status(200).json(cierres);
       return;
@@ -85,7 +85,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     if (activo === 'true') {
       filtro.estado = { $in: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'SERVIDO'] };
     }
-    if (cajero) {
+    if (cajero && cajero !== 'undefined' && cajero !== 'null') {
       filtro.cajeroAsignado = cajero;
     }
     if (mesero) {
