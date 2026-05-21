@@ -3,6 +3,7 @@ import { Request, Response } from 'express'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
+import CierreCaja from '../models/CierreCaja'
 
 export const crearPedido = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -54,8 +55,19 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
 
 export const obtenerPedidos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hoy, fecha, mesa, activo, cajero, mesero } = req.query
+    const { hoy, fecha, mesa, activo, cajero, mesero, reportesCierre } = req.query
     const filtro: any = {}
+
+    // 🔥 Endpoint para consultar los Reportes de Cierre reales de la BD
+    if (reportesCierre === 'true') {
+      const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
+      const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
+      const cierres = await CierreCaja.find({ 
+        fechaCierre: { $gte: inicioHoy, $lte: finHoy } 
+      }).sort({ fechaCierre: -1 });
+      res.status(200).json(cierres);
+      return;
+    }
 
     if (hoy === 'true') {
       const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
@@ -83,6 +95,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
       .populate('usuario', 'nombre apellido')
+      .populate('cajeroAsignado', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
       .sort({ createdAt: -1 }) // Los más recientes primero
 

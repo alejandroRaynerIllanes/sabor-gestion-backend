@@ -1,0 +1,31 @@
+import mongoose, { Schema, Document } from 'mongoose';
+
+export interface ICierreCaja extends Document {
+  cajeroId: string;
+  cajeroNombre: string;
+  totalDia: number;
+  efectivo: number;
+  tarjeta: number;
+  qr: number;
+  descuentos: number;
+  propinas: number;
+  pagosProcesados: number;
+  fechaCierre: Date;
+}
+
+const CierreCajaSchema: Schema = new Schema({
+  cajeroId: { type: String, required: true },
+  cajeroNombre: { type: String, required: true },
+  totalDia: { type: Number, default: 0 },
+  efectivo: { type: Number, default: 0 },
+  tarjeta: { type: Number, default: 0 },
+  qr: { type: Number, default: 0 },
+  descuentos: { type: Number, default: 0 },
+  propinas: { type: Number, default: 0 },
+  pagosProcesados: { type: Number, default: 0 },
+  fechaCierre: { type: Date, default: Date.now }
+}, {
+  timestamps: true
+});
+
+export default mongoose.models.CierreCaja || mongoose.model<ICierreCaja>('CierreCaja', CierreCajaSchema);
