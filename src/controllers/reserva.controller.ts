@@ -59,7 +59,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
         mensaje: 'Ya existe una reserva para esa mesa en esa fecha y hora.'
       })
     }
-    
+
     const contadorDoc: any = await Contador.findOneAndUpdate(
       { nombre_secuencia: 'reservas_restaurante' },
       { $inc: { secuencia: 1 } },

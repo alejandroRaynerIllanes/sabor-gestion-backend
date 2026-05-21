@@ -11,7 +11,7 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
     const pedido = await Pedido.findById(pedidoId)
 
     if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' }) 
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
     }
 
@@ -32,15 +32,11 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
   try {
     const { pedidoId } = req.params
 
-    const {
-      metodoPago, 
-      porcentajeDescuento = 0,
-      porcentajePropina = 0
-    } = req.body
+    const { metodoPago, porcentajeDescuento = 0, porcentajePropina = 0 } = req.body
 
     // Hacemos populate del usuario (Mesero) para saber quién tomó la orden
     const pedido = await Pedido.findById(pedidoId).populate('usuario', 'nombre apellido')
-    
+
     if (!pedido) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
@@ -52,10 +48,12 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     }
 
     if (pedido.estado !== 'ENTREGADO' && pedido.estado !== 'CERRADO') {
-      res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado.' })
+      res
+        .status(400)
+        .json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado.' })
       return
     }
-    
+
     if (!['Efectivo', 'Tarjeta', 'QR'].includes(metodoPago)) {
       res.status(400).json({ mensaje: 'Método de pago no permitido. Use Efectivo, Tarjeta o QR.' })
       return
@@ -68,7 +66,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     const totalFinal = subtotal - montoDescuento + montoPropina
 
     pedido.estado = 'CERRADO'
-    pedido.total = totalFinal 
+    pedido.total = totalFinal
 
     ped.metodoPago = metodoPago
     ped.montoDescuento = montoDescuento
@@ -104,9 +102,9 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     }
 
     // Extraemos el nombre real del mesero
-    const meseroNombre = pedido.usuario 
-      ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim() 
-      : 'Sin mesero';
+    const meseroNombre = pedido.usuario
+      ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim()
+      : 'Sin mesero'
 
     res.status(200).json({
       mensaje: 'Pago procesado exitosamente',
@@ -144,9 +142,9 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
       console.warn('Falló la emisión del WebSocket de simulación:', socketError)
     }
 
-    res.status(200).json({ 
-      exito: true, 
-      mensaje: 'Simulación de pago exitosa. Notificando a la caja...' 
+    res.status(200).json({
+      exito: true,
+      mensaje: 'Simulación de pago exitosa. Notificando a la caja...'
     })
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al simular el pago' })
