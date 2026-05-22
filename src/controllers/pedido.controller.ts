@@ -70,26 +70,28 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     }
 
     if (hoy === 'true') {
-      const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
-      const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
-      filtro.createdAt = { $gte: inicioHoy, $lte: finHoy };
+      const inicioHoy = new Date()
+      inicioHoy.setHours(0, 0, 0, 0)
+      const finHoy = new Date()
+      finHoy.setHours(23, 59, 59, 999)
+      filtro.createdAt = { $gte: inicioHoy, $lte: finHoy }
     } else if (fecha) {
-      const inicio = new Date(`${fecha}T00:00:00`);
-      const fin = new Date(`${fecha}T23:59:59.999`);
-      filtro.createdAt = { $gte: inicio, $lte: fin };
+      const inicio = new Date(`${fecha}T00:00:00`)
+      const fin = new Date(`${fecha}T23:59:59.999`)
+      filtro.createdAt = { $gte: inicio, $lte: fin }
     }
 
     if (mesa) {
-      filtro.mesa = mesa;
+      filtro.mesa = mesa
     }
     if (activo === 'true') {
-      filtro.estado = { $in: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'SERVIDO'] };
+      filtro.estado = { $in: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'SERVIDO'] }
     }
-    if (cajero && cajero !== 'undefined' && cajero !== 'null') {
-      filtro.cajeroAsignado = cajero;
+    if (cajero) {
+      filtro.cajeroAsignado = cajero
     }
     if (mesero) {
-      filtro.usuario = mesero;
+      filtro.usuario = mesero
     }
 
     const pedidos = await Pedido.find(filtro)
@@ -175,12 +177,22 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
 
       // B) EL EVENTO CLAVE: Si el chef presionó "Terminado/Listos"
       if (estado === 'ENTREGADO' || estado === 'Listos') {
-        console.log('🔔 [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:', pedidoActualizado._id.toString());
+        console.log(
+          '🔔 [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:',
+          pedidoActualizado._id.toString()
+        )
         // Le gritamos al frontend del Mesero para que encienda el badge verde de "¡LISTO!"
         io.emit('mesas:alerta_listo', {
           pedidoId: pedidoActualizado._id.toString(),
-          mesaId: pedidoActualizado.mesa ? ((pedidoActualizado.mesa as any)._id?.toString() || pedidoActualizado.mesa.toString()) : undefined,
-          mesaNombre: pedidoActualizado.mesa ? ((pedidoActualizado.mesa as any).numero || (pedidoActualizado.mesa as any).name || (pedidoActualizado.mesa as any).nombre || 'Mesa') : '?'
+          mesaId: pedidoActualizado.mesa
+            ? (pedidoActualizado.mesa as any)._id?.toString() || pedidoActualizado.mesa.toString()
+            : undefined,
+          mesaNombre: pedidoActualizado.mesa
+            ? (pedidoActualizado.mesa as any).numero ||
+              (pedidoActualizado.mesa as any).name ||
+              (pedidoActualizado.mesa as any).nombre ||
+              'Mesa'
+            : '?'
         })
       }
     } catch (socketError) {
@@ -203,26 +215,36 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
   try {
     const { id } = req.params
     // Agregamos los campos de la pre-cuenta
-    const { total, detalles, clienteNombre, clienteCI, clienteNIT, cajeroAsignado, montoDescuento, montoPropina, subtotalCierre } = req.body
+    const {
+      total,
+      detalles,
+      clienteNombre,
+      clienteCI,
+      clienteNIT,
+      cajeroAsignado,
+      montoDescuento,
+      montoPropina,
+      subtotalCierre
+    } = req.body
 
-    const pedidoAnterior = await Pedido.findById(id);
-    const updates: any = {};
-    if (total !== undefined) updates.total = total;
-    if (detalles !== undefined) updates.detalles = detalles;
-    
+    const pedidoAnterior = await Pedido.findById(id)
+    const updates: any = {}
+    if (total !== undefined) updates.total = total
+    if (detalles !== undefined) updates.detalles = detalles
+
     // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
     if (pedidoAnterior && pedidoAnterior.estado === 'ENTREGADO' && detalles !== undefined) {
-       updates.estado = 'ABIERTO';
+      updates.estado = 'ABIERTO'
     }
-    
+
     // Guardar los campos de la pre-cuenta (permitido dinámicamente si el modelo usa strict: false o si están definidos)
-    if (clienteNombre !== undefined) updates.clienteNombre = clienteNombre;
-    if (clienteCI !== undefined) updates.clienteCI = clienteCI;
-    if (clienteNIT !== undefined) updates.clienteNIT = clienteNIT;
-    if (cajeroAsignado !== undefined) updates.cajeroAsignado = cajeroAsignado;
-    if (montoDescuento !== undefined) updates.montoDescuento = montoDescuento;
-    if (montoPropina !== undefined) updates.montoPropina = montoPropina;
-    if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre;
+    if (clienteNombre !== undefined) updates.clienteNombre = clienteNombre
+    if (clienteCI !== undefined) updates.clienteCI = clienteCI
+    if (clienteNIT !== undefined) updates.clienteNIT = clienteNIT
+    if (cajeroAsignado !== undefined) updates.cajeroAsignado = cajeroAsignado
+    if (montoDescuento !== undefined) updates.montoDescuento = montoDescuento
+    if (montoPropina !== undefined) updates.montoPropina = montoPropina
+    if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre
 
     // Actualizamos los platos y el nuevo total del pedido existente
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
@@ -241,56 +263,60 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
 
     // REPARACIÓN CRÍTICA: Forzar la mesa a Ocupada en BD por si estaba desfasada y notificar a la red
     if (pedidoActualizado.mesa) {
-      const mesaId = typeof pedidoActualizado.mesa === 'object' ? (pedidoActualizado.mesa as any)._id : pedidoActualizado.mesa;
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Ocupada' });
+      const mesaId =
+        typeof pedidoActualizado.mesa === 'object'
+          ? (pedidoActualizado.mesa as any)._id
+          : pedidoActualizado.mesa
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Ocupada' })
       try {
         getIO().emit('mesas:updated', {
           id: mesaId.toString(),
           status: 'Ocupada',
           name: (pedidoActualizado.mesa as any).numero || 'Mesa'
         })
-      } catch(e) {}
+      } catch (e) {}
     }
 
     // Avisamos a la cocina en tiempo real que este pedido tiene platos nuevos
-    try { getIO().emit('cocina:actualizar_tablero', pedidoActualizado) } catch (e) {}
-    
-    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
-    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
-  if (cajeroAsignado) {
-    const pedidoCaja: any = pedidoActualizado
-
-    const payloadCaja = {
-      pedidoId: pedidoCaja._id,
-      codigo: pedidoCaja.codigo || `PED-${String(pedidoCaja._id).slice(-4).toUpperCase()}`,
-      mesaId: pedidoCaja.mesa?._id || pedidoCaja.mesa,
-      mesaNombre: pedidoCaja.mesa?.numero || 'Mesa sin asignar',
-      meseroNombre: pedidoCaja.usuario
-        ? `${pedidoCaja.usuario.nombre || ''} ${pedidoCaja.usuario.apellido || ''}`.trim()
-        : 'Sin mesero',
-      total: pedidoCaja.total,
-      items:
-        pedidoCaja.detalles?.map((detalle: any) => ({
-          platoId: detalle.plato?._id || detalle.plato,
-          nombre: detalle.plato?.nombre || 'Plato no disponible',
-          cantidad: detalle.cantidad,
-          precioUnitario: detalle.precioUnitario,
-          subtotal: detalle.subtotal,
-          observacion: detalle.observacion
-        })) || []
-    }
-
     try {
-      const io = getIO()
-
-      // Evento que ya existía en el backend
-      io.emit('caja:nueva_cuenta', payloadCaja)
-
-      // Evento sugerido por el documento del frontend
-      io.emit('caja:solicitud_pago', payloadCaja)
+      getIO().emit('cocina:actualizar_tablero', pedidoActualizado)
     } catch (e) {}
-  }
 
+    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
+    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
+    if (cajeroAsignado) {
+      const pedidoCaja: any = pedidoActualizado
+
+      const payloadCaja = {
+        pedidoId: pedidoCaja._id,
+        codigo: pedidoCaja.codigo || `PED-${String(pedidoCaja._id).slice(-4).toUpperCase()}`,
+        mesaId: pedidoCaja.mesa?._id || pedidoCaja.mesa,
+        mesaNombre: pedidoCaja.mesa?.numero || 'Mesa sin asignar',
+        meseroNombre: pedidoCaja.usuario
+          ? `${pedidoCaja.usuario.nombre || ''} ${pedidoCaja.usuario.apellido || ''}`.trim()
+          : 'Sin mesero',
+        total: pedidoCaja.total,
+        items:
+          pedidoCaja.detalles?.map((detalle: any) => ({
+            platoId: detalle.plato?._id || detalle.plato,
+            nombre: detalle.plato?.nombre || 'Plato no disponible',
+            cantidad: detalle.cantidad,
+            precioUnitario: detalle.precioUnitario,
+            subtotal: detalle.subtotal,
+            observacion: detalle.observacion
+          })) || []
+      }
+
+      try {
+        const io = getIO()
+
+        // Evento que ya existía en el backend
+        io.emit('caja:nueva_cuenta', payloadCaja)
+
+        // Evento sugerido por el documento del frontend
+        io.emit('caja:solicitud_pago', payloadCaja)
+      } catch (e) {}
+    }
 
     res.status(200).json(pedidoActualizado)
   } catch (error) {
@@ -299,10 +325,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
   }
 }
 
-export const obtenerPedidosPendientesCobro = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const obtenerPedidosPendientesCobro = async (req: Request, res: Response): Promise<void> => {
   try {
     // 1. Buscamos las mesas que ya solicitaron cuenta
     const mesasConCuentaSolicitada = await Mesa.find({
@@ -359,7 +382,6 @@ export const obtenerPedidosPendientesCobro = async (
   }
 }
 
-
 export const solicitarCuentaPedido = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params
@@ -410,14 +432,15 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
         ? `${(pedidoPoblado as any).usuario.nombre || ''} ${(pedidoPoblado as any).usuario.apellido || ''}`.trim()
         : 'Sin mesero',
       total: pedidoPoblado?.total || pedido.total,
-      items: (pedidoPoblado as any)?.detalles?.map((detalle: any) => ({
-        platoId: detalle.plato?._id || detalle.plato,
-        nombre: detalle.plato?.nombre || 'Plato no disponible',
-        cantidad: detalle.cantidad,
-        precioUnitario: detalle.precioUnitario,
-        subtotal: detalle.subtotal,
-        observacion: detalle.observacion
-      })) || []
+      items:
+        (pedidoPoblado as any)?.detalles?.map((detalle: any) => ({
+          platoId: detalle.plato?._id || detalle.plato,
+          nombre: detalle.plato?.nombre || 'Plato no disponible',
+          cantidad: detalle.cantidad,
+          precioUnitario: detalle.precioUnitario,
+          subtotal: detalle.subtotal,
+          observacion: detalle.observacion
+        })) || []
     }
 
     try {

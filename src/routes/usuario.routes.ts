@@ -8,14 +8,19 @@ import {
   eliminarUsuario
 } from '../controllers/usuario.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
-import { soloAdmins } from '../middlewares/rol.middleware'
+import { soloAdmins, permitirRoles } from '../middlewares/rol.middleware'
 
 const router = Router()
 
 router.get('/', verificarToken, obtenerUsuarios)
 router.post('/', verificarToken, soloAdmins, crearUsuario)
 router.put('/:id', verificarToken, soloAdmins, actualizarUsuario)
-router.patch('/:id/estado', verificarToken, soloAdmins, cambiarEstadoUsuario)
+router.patch(
+  '/:id/estado',
+  verificarToken,
+  permitirRoles('Administrador', 'Cajero'),
+  cambiarEstadoUsuario
+)
 router.delete('/:id', verificarToken, soloAdmins, eliminarUsuario)
 
 export default router

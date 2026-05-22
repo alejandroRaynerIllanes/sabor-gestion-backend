@@ -11,7 +11,7 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
     const pedido = await Pedido.findById(pedidoId)
 
     if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' }) 
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
     }
 
@@ -32,15 +32,11 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
   try {
     const { pedidoId } = req.params
 
-    const {
-      metodoPago, 
-      porcentajeDescuento = 0,
-      porcentajePropina = 0
-    } = req.body
+    const { metodoPago, porcentajeDescuento = 0, porcentajePropina = 0 } = req.body
 
     // Hacemos populate del usuario (Mesero) para saber quién tomó la orden
     const pedido = await Pedido.findById(pedidoId).populate('usuario', 'nombre apellido')
-    
+
     if (!pedido) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
@@ -52,10 +48,12 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     }
 
     if (pedido.estado !== 'ENTREGADO' && pedido.estado !== 'CERRADO') {
-      res.status(400).json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado.' })
+      res
+        .status(400)
+        .json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado.' })
       return
     }
-    
+
     if (!['Efectivo', 'Tarjeta', 'QR'].includes(metodoPago)) {
       res.status(400).json({ mensaje: 'Método de pago no permitido. Use Efectivo, Tarjeta o QR.' })
       return
@@ -68,7 +66,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     const totalFinal = subtotal - montoDescuento + montoPropina
 
     pedido.estado = 'CERRADO'
-    pedido.total = totalFinal 
+    pedido.total = totalFinal
 
     ped.metodoPago = metodoPago
     ped.montoDescuento = montoDescuento
@@ -104,9 +102,9 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     }
 
     // Extraemos el nombre real del mesero
-    const meseroNombre = pedido.usuario 
-      ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim() 
-      : 'Sin mesero';
+    const meseroNombre = pedido.usuario
+      ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim()
+      : 'Sin mesero'
 
     res.status(200).json({
       mensaje: 'Pago procesado exitosamente',
@@ -144,9 +142,9 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
       console.warn('Falló la emisión del WebSocket de simulación:', socketError)
     }
 
-    res.status(200).json({ 
-      exito: true, 
-      mensaje: 'Simulación de pago exitosa. Notificando a la caja...' 
+    res.status(200).json({
+      exito: true,
+      mensaje: 'Simulación de pago exitosa. Notificando a la caja...'
     })
   } catch (error) {
     res.status(500).json({ mensaje: 'Error al simular el pago' })
@@ -155,50 +153,52 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
 // 4. NUEVO: Enviar recibo detallado por correo electrónico
 export const enviarReciboCorreo = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { pedidoId } = req.params;
+    const { pedidoId } = req.params
     // AHORA RECIBIMOS LOS DATOS DESDE EL FRONTEND
-    const { email, clienteNombre, clienteCI } = req.body; 
+    const { email, clienteNombre, clienteCI } = req.body
 
     if (!email) {
-      res.status(400).json({ mensaje: 'Debe proporcionar un correo electrónico' });
-      return;
+      res.status(400).json({ mensaje: 'Debe proporcionar un correo electrónico' })
+      return
     }
 
     const pedido = await Pedido.findById(pedidoId)
       .populate('usuario', 'nombre apellido')
       .populate('mesa')
-      .populate('detalles.plato', 'nombre precio');
-    
+      .populate('detalles.plato', 'nombre precio')
+
     if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' });
-      return;
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
     }
 
-    const ped: any = pedido;
-    const codigo = ped.codigo || `PED-${String(ped._id).slice(-4).toUpperCase()}`;
-    const subtotal = ped.subtotalCierre || ped.total || 0;
-    const descuento = ped.montoDescuento || 0;
-    const propina = ped.montoPropina || 0;
-    const totalFinal = subtotal - descuento + propina;
-    
-    const mesaNombre = ped.mesa?.numero || 'Barra';
-    const meseroNombre = ped.usuario ? `${ped.usuario.nombre} ${ped.usuario.apellido || ''}`.trim() : 'Mesero';
-    const fecha = new Date().toLocaleString('es-BO');
+    const ped: any = pedido
+    const codigo = ped.codigo || `PED-${String(ped._id).slice(-4).toUpperCase()}`
+    const subtotal = ped.subtotalCierre || ped.total || 0
+    const descuento = ped.montoDescuento || 0
+    const propina = ped.montoPropina || 0
+    const totalFinal = subtotal - descuento + propina
+
+    const mesaNombre = ped.mesa?.numero || 'Barra'
+    const meseroNombre = ped.usuario
+      ? `${ped.usuario.nombre} ${ped.usuario.apellido || ''}`.trim()
+      : 'Mesero'
+    const fecha = new Date().toLocaleString('es-BO')
 
     // USAMOS LOS DATOS QUE NOS MANDÓ LA PANTALLA (o valores por defecto si fallan)
-    const finalClienteNombre = clienteNombre || ped.clienteNombre || 'Consumidor Final';
-    const finalClienteCI = clienteCI || ped.clienteCI || ped.clienteNIT || 'S/N';
+    const finalClienteNombre = clienteNombre || ped.clienteNombre || 'Consumidor Final'
+    const finalClienteCI = clienteCI || ped.clienteCI || ped.clienteNIT || 'S/N'
 
     // 1. Armamos las filas de la tabla de consumo dinámicamente
-    let itemsHtml = '';
-    const detalles = ped.detalles || ped.items || [];
-    
+    let itemsHtml = ''
+    const detalles = ped.detalles || ped.items || []
+
     detalles.forEach((item: any) => {
-      const nombre = item.nombre || item.plato?.nombre || 'Plato';
-      const cantidad = item.cantidad || 1;
-      const pu = (item.precioUnitario || item.plato?.precio || 0).toFixed(2);
-      const subt = (item.subtotal || (parseFloat(pu) * cantidad)).toFixed(2);
-      
+      const nombre = item.nombre || item.plato?.nombre || 'Plato'
+      const cantidad = item.cantidad || 1
+      const pu = (item.precioUnitario || item.plato?.precio || 0).toFixed(2)
+      const subt = (item.subtotal || parseFloat(pu) * cantidad).toFixed(2)
+
       itemsHtml += `
         <tr>
           <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0;">${cantidad}</td>
@@ -206,16 +206,22 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
           <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">${pu}</td>
           <td style="padding: 6px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">${subt}</td>
         </tr>
-      `;
-    });
+      `
+    })
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // true para port 465
       auth: {
-        user: process.env.EMAIL_USER, 
-        pass: process.env.EMAIL_PASS  
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      },
+      tls: {
+        // No fallar en certificados inválidos en servidores de Render
+        rejectUnauthorized: false
       }
-    });
+    })
 
     // 2. Diseño del Ticket estilo "Impresora"
     const mailOptions = {
@@ -268,13 +274,13 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
 
         </div>
       `
-    };
+    }
 
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail(mailOptions)
 
-    res.status(200).json({ mensaje: 'Recibo enviado por correo exitosamente' });
+    res.status(200).json({ mensaje: 'Recibo enviado por correo exitosamente' })
   } catch (error) {
-    console.error('Error al enviar correo:', error);
-    res.status(500).json({ mensaje: 'Error al enviar el correo' });
+    console.error('Error al enviar correo:', error)
+    res.status(500).json({ mensaje: 'Error al enviar el correo' })
   }
 }

@@ -13,88 +13,94 @@ export const obtenerResumenDashboard = async (req: Request, res: Response): Prom
     finHoy.setHours(23, 59, 59, 999)
 
     // 2. Consultas en paralelo para optimizar rendimiento
-    const [statsHoy, mesasActivas, platosPopulares, categoriasPopulares, ordenesRecientes, totalMesasBD] =
-      await Promise.all([
-        // A. Ventas y cantidad de órdenes de hoy
-        Pedido.aggregate([
-          {
-            $match: {
-              createdAt: { $gte: inicioHoy, $lte: finHoy },
-              estado: 'CERRADO'
-            }
-          },
-          {
-            $group: {
-              _id: null,
-              totalVentas: { $sum: '$total' },
-              totalOrdenes: { $count: {} }
-            }
+    const [
+      statsHoy,
+      mesasActivas,
+      platosPopulares,
+      categoriasPopulares,
+      ordenesRecientes,
+      totalMesasBD
+    ] = await Promise.all([
+      // A. Ventas y cantidad de órdenes de hoy
+      Pedido.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: inicioHoy, $lte: finHoy },
+            estado: 'CERRADO'
           }
-        ]),
+        },
+        {
+          $group: {
+            _id: null,
+            totalVentas: { $sum: '$total' },
+            totalOrdenes: { $count: {} }
+          }
+        }
+      ]),
 
-        // B. Conteo de mesas activas (No libres)
-        Mesa.countDocuments({ estado: { $ne: 'Libre' } }),
+      // B. Conteo de mesas activas (No libres)
+      Mesa.countDocuments({ estado: { $ne: 'Libre' } }),
 
-        // C. Top 5 Platos más vendidos
-        Pedido.aggregate([
-          { $match: { estado: 'CERRADO' } },
-          { $unwind: '$detalles' },
-          {
-            $group: {
-              _id: '$detalles.plato',
-              cantidadVendida: { $sum: '$detalles.cantidad' }
-            }
-          },
-          { $sort: { cantidadVendida: -1 } },
-          { $limit: 5 },
-          {
-            $lookup: {
-              from: 'platos',
-              localField: '_id',
-              foreignField: '_id',
-              as: 'datosPlato'
-            }
-          },
-          { $unwind: '$datosPlato' }
-        ]),
+      // C. Top 5 Platos más vendidos
+      Pedido.aggregate([
+        { $match: { estado: 'CERRADO' } },
+        { $unwind: '$detalles' },
+        {
+          $group: {
+            _id: '$detalles.plato',
+            cantidadVendida: { $sum: '$detalles.cantidad' }
+          }
+        },
+        { $sort: { cantidadVendida: -1 } },
+        { $limit: 5 },
+        {
+          $lookup: {
+            from: 'platos',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'datosPlato'
+          }
+        },
+        { $unwind: '$datosPlato' }
+      ]),
 
-        // D. Categorías más populares (con doble $lookup)
-        Pedido.aggregate([
-          { $match: { estado: 'CERRADO' } },
-          { $unwind: '$detalles' },
-          {
-            $lookup: {
-              from: 'platos',
-              localField: 'detalles.plato',
-              foreignField: '_id',
-              as: 'plato'
-            }
-          },
-          { $unwind: '$plato' },
-          {
-            $lookup: {
-              from: 'categorias',
-              localField: 'plato.categoria',
-              foreignField: '_id',
-              as: 'categoria'
-            }
-          },
-          { $unwind: '$categoria' },
-          {
-            $group: {
-              _id: '$categoria.nombre',
-              totalPedidos: { $sum: '$detalles.cantidad' }
-            }
-          },
-          { $sort: { totalPedidos: -1 } }
-        ]),
+      // D. Categorías más populares (con doble $lookup)
+      Pedido.aggregate([
+        { $match: { estado: 'CERRADO' } },
+        { $unwind: '$detalles' },
+        {
+          $lookup: {
+            from: 'platos',
+            localField: 'detalles.plato',
+            foreignField: '_id',
+            as: 'plato'
+          }
+        },
+        { $unwind: '$plato' },
+        {
+          $lookup: {
+            from: 'categorias',
+            localField: 'plato.categoria',
+            foreignField: '_id',
+            as: 'categoria'
+          }
+        },
+        { $unwind: '$categoria' },
+        {
+          $group: {
+            _id: '$categoria.nombre',
+            totalPedidos: { $sum: '$detalles.cantidad' }
+          }
+        },
+        { $sort: { totalPedidos: -1 } }
+      ]),
 
-        // E. Órdenes recientes para la tabla inferior
-        Pedido.find().sort({ createdAt: -1 }).limit(5).populate('mesa', 'numero'),
+      // E. Órdenes recientes para la tabla inferior
+      Pedido.find().sort({ createdAt: -1 }).limit(5).populate('mesa', 'numero'),
 
-        // F. Total de mesas reales registradas
-        Mesa.countDocuments()
-      ])
+      // F. Total de mesas reales registradas
+      Mesa.countDocuments()
+    ])
 
     const traducirEstado = (estadoBD: string) => {
       switch (estadoBD) {
