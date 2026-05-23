@@ -5,6 +5,7 @@ import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 import nodemailer from 'nodemailer'
 import Reserva from '../models/Reserva'
+import Pago from '../models/Pago'
 // 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -48,10 +49,10 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       return
     }
 
-    if (pedido.estado !== 'ENTREGADO' && pedido.estado !== 'CERRADO') {
-      res
-        .status(400)
-        .json({ mensaje: 'No se puede procesar el pago. El pedido aún no ha sido entregado.' })
+    // RESTRICCIÓN FLEXIBILIZADA: Evitamos que el cajero se quede bloqueado si el chef olvidó marcar "Listo"
+    // Solo evitamos cobrar pedidos que ya estén Cancelados.
+    if (pedido.estado === 'CANCELADO') {
+      res.status(400).json({ mensaje: 'No se puede cobrar un pedido cancelado.' })
       return
     }
 
@@ -62,8 +63,16 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     const ped: any = pedido
     const subtotal = ped.subtotalCierre || pedido.total || 0
-    const montoDescuento = ped.montoDescuento || 0
-    const montoPropina = ped.montoPropina || 0
+    
+    // 🛠️ BUG FIX: Calcular los montos reales si el frontend envió porcentajes en el momento del pago
+    const montoDescuento = porcentajeDescuento > 0 
+      ? (subtotal * (porcentajeDescuento / 100)) 
+      : (ped.montoDescuento || 0)
+      
+    const montoPropina = porcentajePropina > 0 
+      ? (subtotal * (porcentajePropina / 100)) 
+      : (ped.montoPropina || 0)
+      
     const totalFinal = subtotal - montoDescuento + montoPropina
 
     pedido.estado = 'CERRADO'
@@ -75,6 +84,27 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     ped.subtotalCierre = subtotal
 
     await pedido.save()
+
+    // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
+    // Separamos la lógica contable y creamos el registro financiero puro
+    const nuevoPago = new Pago({
+      codigoPago: `PAG-${String(pedido._id).slice(-6).toUpperCase()}`,
+      pedido: pedido._id,
+      mesa: pedido.mesa,
+      mesero: (pedido.usuario as any)?._id || pedido.usuario,
+      cajero: (req as any).usuario?.id || ped.cajeroAsignado || null,
+      nombreCliente: ped.clienteNombre || 'Consumidor Final',
+      ci: ped.clienteCI || '',
+      nit: ped.clienteNIT || '',
+      subtotal: subtotal,
+      descuento: montoDescuento,
+      propina: montoPropina,
+      totalFinal: totalFinal,
+      metodoPago: metodoPago,
+      estadoPago: 'Pagado',
+      fechaPago: new Date()
+    })
+    await nuevoPago.save()
 
     let nuevoEstado = 'Libre'
     if (pedido.mesa) {

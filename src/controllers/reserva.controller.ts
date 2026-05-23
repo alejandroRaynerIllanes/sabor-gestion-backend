@@ -90,8 +90,16 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     await nuevaReserva.save()
 
-    // 1. Lógica de clonD: Actualizamos el estado de la mesa a 'Reservada'
-    await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+    // 1. PROTECCIÓN CRÍTICA (Bug 1): Solo bloqueamos la mesa si la reserva es para HOY y si estaba Libre.
+    const hoyStr = new Date().toISOString().split('T')[0]
+    const fechaReservaStr = new Date(fechaReserva).toISOString().split('T')[0]
+    const esParaHoy = hoyStr === fechaReservaStr
+    
+    let cambiarAReservada = false
+    if (esParaHoy && mesaEncontrada.estado === 'Libre') {
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+      cambiarAReservada = true
+    }
 
     // 2. Lógica de clonD: Hacemos el populate para tener toda la info
     const reservaGuardada = await Reserva.findById(nuevaReserva._id)
@@ -117,8 +125,10 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     try {
       getIO().emit('nueva_reserva', reservaFormateada)
 
-      // Emitimos también que la mesa se actualizó para que en el mapa cambie a "Reservada" en tiempo real
-      getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+      if (cambiarAReservada) {
+        // Emitimos también que la mesa se actualizó para que en el mapa cambie a "Reservada" en tiempo real
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+      }
     } catch (socketError) {
       console.error('Socket no inicializado o error al emitir:', socketError)
     }
@@ -174,23 +184,33 @@ export const eliminarReserva = async (req: CustomRequest, res: Response) => {
     }
 
     const mesaId = reserva.mesa
+    const mesaActual = await Mesa.findById(mesaId) // Recuperamos su estado real antes de eliminar
 
     await Reserva.findByIdAndDelete(id)
 
-    const reservasRestantes = await Reserva.countDocuments({ mesa: mesaId })
+    // Contamos solo las reservas desde hoy hacia el futuro (las pasadas ya no importan)
+    const inicioHoy = new Date()
+    inicioHoy.setHours(0, 0, 0, 0)
+    const reservasRestantes = await Reserva.countDocuments({ 
+      mesa: mesaId,
+      fecha: { $gte: inicioHoy }
+    })
 
-    if (reservasRestantes === 0) {
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
-      try {
-        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
-        getIO().emit('mesas:updated', { id: mesaId, status: 'Disponible' })
-      } catch (e) {}
-    } else {
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
-      try {
-        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
-        getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
-      } catch (e) {}
+    try {
+      // Siempre avisamos que la reserva desapareció de la lista de la interfaz
+      getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+      
+      // PROTECCIÓN CRÍTICA (Bug 3): Solo pasamos a Libre si la mesa actualmente estaba "Reservada"
+      // Si estaba "Ocupada" o "Cuenta Solicitada", NO debemos tocarla.
+      if (mesaActual && mesaActual.estado === 'Reservada') {
+        if (reservasRestantes === 0) {
+          await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
+          getIO().emit('mesas:updated', { id: mesaId, status: 'Disponible' })
+        }
+        // Si quedan reservas (> 0), se queda en Reservada, no hacemos nada más.
+      }
+    } catch (e) {
+      console.warn('Error emitiendo socket de eliminación', e)
     }
 
     return res.status(200).json({

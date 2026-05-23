@@ -272,20 +272,24 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       return
     }
 
-    // REPARACIÓN CRÍTICA: Forzar la mesa a Ocupada en BD por si estaba desfasada y notificar a la red
+    // REPARACIÓN CRÍTICA (Bug 1): Solo forzar la mesa a Ocupada si se agregaron nuevos platos
+    // y el pedido realmente se reabrió. Evita que la mesa desaparezca de la Caja al poner el NIT.
     if (pedidoActualizado.mesa) {
       const mesaId =
         typeof pedidoActualizado.mesa === 'object'
           ? (pedidoActualizado.mesa as any)._id
           : pedidoActualizado.mesa
-      await Mesa.findByIdAndUpdate(mesaId, { estado: ESTADOS_MESA.OCUPADA })
-      try {
-        getIO().emit('mesas:updated', {
-          id: mesaId.toString(),
-          status: ESTADOS_MESA.OCUPADA,
-          name: (pedidoActualizado.mesa as any).numero || 'Mesa'
-        })
-      } catch (e) {}
+      
+      if (updates.estado === ESTADOS_PEDIDO.ABIERTO) {
+        await Mesa.findByIdAndUpdate(mesaId, { estado: ESTADOS_MESA.OCUPADA })
+        try {
+          getIO().emit('mesas:updated', {
+            id: mesaId.toString(),
+            status: ESTADOS_MESA.OCUPADA,
+            name: (pedidoActualizado.mesa as any).numero || 'Mesa'
+          })
+        } catch (e) {}
+      }
     }
 
     // Avisamos a la cocina en tiempo real que este pedido tiene platos nuevos
@@ -366,9 +370,10 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
       return
     }
 
-    if (pedido.estado !== ESTADOS_PEDIDO.ENTREGADO) {
+    // FLEXIBILIZACIÓN (Bug 2): Permitir pedir cuenta aunque el chef no haya tocado el pedido (Ej: Solo bebidas).
+    if (pedido.estado === ESTADOS_PEDIDO.CANCELADO || pedido.estado === ESTADOS_PEDIDO.CERRADO) {
       res.status(400).json({
-        mensaje: 'Solo se puede solicitar cuenta de un pedido entregado.'
+        mensaje: 'No se puede solicitar cuenta de un pedido que ya está cerrado o cancelado.'
       })
       return
     }
