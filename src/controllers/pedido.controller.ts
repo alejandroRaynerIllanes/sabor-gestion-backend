@@ -261,7 +261,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true, strict: false } // strict: false previene que mongoose borre campos no declarados temporalmente
+      { new: true } // SOLUCIÓN: Activamos de nuevo la seguridad estricta de Mongoose porque los campos ya están en el modelo
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
@@ -322,6 +322,8 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
 
 export const obtenerPedidosPendientesCobro = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { cajero } = req.query
+
     // 1. Buscamos las mesas que ya solicitaron cuenta
     const mesasConCuentaSolicitada = await Mesa.find({
       estado: ESTADOS_MESA.CUENTA_SOLICITADA
@@ -329,11 +331,21 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
 
     const mesaIds = mesasConCuentaSolicitada.map((mesa) => mesa._id)
 
-    // 2. Buscamos pedidos entregados asociados a esas mesas
-    const pedidos = await Pedido.find({
+    const filtroPedidos: any = {
       estado: ESTADOS_PEDIDO.ENTREGADO,
       mesa: { $in: mesaIds }
-    })
+    }
+
+    if (cajero) {
+      filtroPedidos.$or = [
+        { cajeroAsignado: cajero },
+        { cajeroAsignado: null },
+        { cajeroAsignado: { $exists: false } }
+      ]
+    }
+
+    // 2. Buscamos pedidos entregados asociados a esas mesas
+    const pedidos = await Pedido.find(filtroPedidos)
       .populate('mesa', 'numero estado')
       .populate('usuario', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
