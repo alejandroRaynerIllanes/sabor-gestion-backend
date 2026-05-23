@@ -36,6 +36,10 @@ export interface IPedido extends Document {
   montoDescuento?: number
   montoPropina?: number
   subtotalCierre?: number
+  clienteNombre?: string
+  clienteCI?: string
+  clienteNIT?: string
+  cajeroAsignado?: mongoose.Types.ObjectId
 }
 
 const PedidoSchema = new Schema(
@@ -66,7 +70,11 @@ const PedidoSchema = new Schema(
     },
     montoDescuento: { type: Number, default: 0 },
     montoPropina: { type: Number, default: 0 },
-    subtotalCierre: { type: Number, default: 0 } // Total antes de descuentos/propinas
+    subtotalCierre: { type: Number, default: 0 }, // Total antes de descuentos/propinas
+    clienteNombre: { type: String, required: false },
+    clienteCI: { type: String, required: false },
+    clienteNIT: { type: String, required: false },
+    cajeroAsignado: { type: Schema.Types.ObjectId, ref: 'Usuario', required: false }
   },
   {
     timestamps: true,
