@@ -4,6 +4,7 @@ import { CustomRequest } from '../middlewares/auth.middleware'
 import Usuario from '../models/Usuario'
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
+import CierreCaja from '../models/CierreCaja'
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {
@@ -201,7 +202,7 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
 export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params
-    const { estado } = req.body // Recibimos true o false
+    const { estado, reporte } = req.body // Recibimos true o false, y reporte al cerrar caja
 
     // Si el rol es 'Cajero', asegurarse de que solo cambie su propia caja
     if (req.usuario && req.usuario.rol.toLowerCase() === 'cajero' && req.usuario.id !== id) {
@@ -239,6 +240,23 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
 
     if (!usuarioActualizado) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' })
+    }
+
+    // 🔥 REGISTRO AUTOMÁTICO DE CIERRE DE CAJA EN MONGODB
+    if ((estado === false || String(estado) === 'false') && reporte) {
+      const nuevoCierre = new CierreCaja({
+        cajeroId: id,
+        cajeroNombre: `${usuarioActualizado.nombre} ${usuarioActualizado.apellido || ''}`.trim(),
+        totalDia: reporte.totalDia || 0,
+        efectivo: reporte.efectivo || 0,
+        tarjeta: reporte.tarjeta || 0,
+        qr: reporte.qr || 0,
+        descuentos: reporte.descuentos || 0,
+        propinas: reporte.propinas || 0,
+        pagosProcesados: reporte.pagosProcesados || 0,
+        fechaCierre: new Date()
+      });
+      await nuevoCierre.save();
     }
 
     res.status(200).json({
