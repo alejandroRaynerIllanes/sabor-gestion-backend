@@ -4,6 +4,9 @@ import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 import CierreCaja from '../models/CierreCaja'
+import Reserva from '../models/Reserva'
+import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
+import { PedidoService } from '../services/pedido.service'
 
 export const crearPedido = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -22,7 +25,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
     const mesaId = req.body.mesa
     const mesaActualizada = await Mesa.findByIdAndUpdate(
       mesaId,
-      { estado: 'Ocupada' },
+      { estado: ESTADOS_MESA.OCUPADA },
       { new: true }
     ).populate('ubicacionId', 'nombre')
 
@@ -38,7 +41,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
         // Usamos un mapeo simple para el socket
         io.emit('mesas:updated', {
           id: mesaActualizada._id.toString(),
-          status: 'Ocupada',
+          status: ESTADOS_MESA.OCUPADA,
           name: mesaActualizada.numero
         })
       }
@@ -85,7 +88,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       filtro.mesa = mesa
     }
     if (activo === 'true') {
-      filtro.estado = { $in: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'SERVIDO'] }
+      filtro.estado = { $in: [ESTADOS_PEDIDO.ABIERTO, ESTADOS_PEDIDO.EN_PREPARACION, ESTADOS_PEDIDO.ENTREGADO, 'SERVIDO'] }
     }
     if (cajero) {
       filtro.cajeroAsignado = cajero
@@ -118,14 +121,22 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
       return
     }
 
-    pedido.estado = 'CANCELADO'
+    pedido.estado = ESTADOS_PEDIDO.CANCELADO
     await pedido.save()
 
     // Si el pedido tenía una mesa asignada, la liberamos
     if (pedido.mesa) {
+      const inicioHoy = new Date()
+      inicioHoy.setHours(0, 0, 0, 0)
+      const reservasPendientes = await Reserva.countDocuments({
+        mesa: pedido.mesa,
+        fecha: { $gte: inicioHoy }
+      })
+      const nuevoEstado = reservasPendientes > 0 ? 'Reservada' : 'Libre'
+
       const mesaLiberada = await Mesa.findByIdAndUpdate(
         pedido.mesa,
-        { estado: 'Libre' },
+        { estado: nuevoEstado },
         { new: true }
       )
 
@@ -133,7 +144,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
       if (mesaLiberada) {
         getIO().emit('mesas:updated', {
           id: mesaLiberada._id.toString(),
-          status: 'Disponible'
+          status: nuevoEstado === 'Libre' ? 'Disponible' : 'Reservada'
         })
       }
     }
@@ -176,7 +187,7 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
       io.emit('cocina:actualizar_tablero', pedidoActualizado)
 
       // B) EL EVENTO CLAVE: Si el chef presionó "Terminado/Listos"
-      if (estado === 'ENTREGADO' || estado === 'Listos') {
+      if (estado === ESTADOS_PEDIDO.ENTREGADO || estado === 'Listos') {
         console.log(
           '🔔 [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:',
           pedidoActualizado._id.toString()
@@ -233,8 +244,8 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (detalles !== undefined) updates.detalles = detalles
 
     // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
-    if (pedidoAnterior && pedidoAnterior.estado === 'ENTREGADO' && detalles !== undefined) {
-      updates.estado = 'ABIERTO'
+    if (pedidoAnterior && pedidoAnterior.estado === ESTADOS_PEDIDO.ENTREGADO && detalles !== undefined) {
+      updates.estado = ESTADOS_PEDIDO.ABIERTO
     }
 
     // Guardar los campos de la pre-cuenta (permitido dinámicamente si el modelo usa strict: false o si están definidos)
@@ -267,11 +278,11 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
         typeof pedidoActualizado.mesa === 'object'
           ? (pedidoActualizado.mesa as any)._id
           : pedidoActualizado.mesa
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Ocupada' })
+      await Mesa.findByIdAndUpdate(mesaId, { estado: ESTADOS_MESA.OCUPADA })
       try {
         getIO().emit('mesas:updated', {
           id: mesaId.toString(),
-          status: 'Ocupada',
+          status: ESTADOS_MESA.OCUPADA,
           name: (pedidoActualizado.mesa as any).numero || 'Mesa'
         })
       } catch (e) {}
@@ -285,27 +296,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
     // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
     if (cajeroAsignado) {
-      const pedidoCaja: any = pedidoActualizado
-
-      const payloadCaja = {
-        pedidoId: pedidoCaja._id,
-        codigo: pedidoCaja.codigo || `PED-${String(pedidoCaja._id).slice(-4).toUpperCase()}`,
-        mesaId: pedidoCaja.mesa?._id || pedidoCaja.mesa,
-        mesaNombre: pedidoCaja.mesa?.numero || 'Mesa sin asignar',
-        meseroNombre: pedidoCaja.usuario
-          ? `${pedidoCaja.usuario.nombre || ''} ${pedidoCaja.usuario.apellido || ''}`.trim()
-          : 'Sin mesero',
-        total: pedidoCaja.total,
-        items:
-          pedidoCaja.detalles?.map((detalle: any) => ({
-            platoId: detalle.plato?._id || detalle.plato,
-            nombre: detalle.plato?.nombre || 'Plato no disponible',
-            cantidad: detalle.cantidad,
-            precioUnitario: detalle.precioUnitario,
-            subtotal: detalle.subtotal,
-            observacion: detalle.observacion
-          })) || []
-      }
+      const payloadCaja = PedidoService.formatearPayloadCaja(pedidoActualizado)
 
       try {
         const io = getIO()
@@ -329,14 +320,14 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
   try {
     // 1. Buscamos las mesas que ya solicitaron cuenta
     const mesasConCuentaSolicitada = await Mesa.find({
-      estado: 'Cuenta Solicitada'
+      estado: ESTADOS_MESA.CUENTA_SOLICITADA
     }).select('_id')
 
     const mesaIds = mesasConCuentaSolicitada.map((mesa) => mesa._id)
 
     // 2. Buscamos pedidos entregados asociados a esas mesas
     const pedidos = await Pedido.find({
-      estado: 'ENTREGADO',
+      estado: ESTADOS_PEDIDO.ENTREGADO,
       mesa: { $in: mesaIds }
     })
       .populate('mesa', 'numero estado')
@@ -345,32 +336,7 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
       .sort({ updatedAt: -1 })
 
     // 3. Formateamos la respuesta para que sea cómoda para el frontend
-    const respuesta = pedidos.map((pedido: any) => {
-      const fechaBase = pedido.updatedAt || pedido.createdAt || pedido.fechaHora
-      const tiempoEsperaMinutos = fechaBase
-        ? Math.floor((Date.now() - new Date(fechaBase).getTime()) / 60000)
-        : 0
-
-      return {
-        pedidoId: pedido._id,
-        codigo: pedido.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`,
-        mesaId: pedido.mesa?._id,
-        mesaNombre: pedido.mesa?.numero || 'Mesa sin asignar',
-        meseroNombre: pedido.usuario
-          ? `${pedido.usuario.nombre || ''} ${pedido.usuario.apellido || ''}`.trim()
-          : 'Sin mesero',
-        total: pedido.total,
-        tiempoEsperaMinutos,
-        items: pedido.detalles.map((detalle: any) => ({
-          platoId: detalle.plato?._id || detalle.plato,
-          nombre: detalle.plato?.nombre || 'Plato no disponible',
-          cantidad: detalle.cantidad,
-          precioUnitario: detalle.precioUnitario,
-          subtotal: detalle.subtotal,
-          observacion: detalle.observacion
-        }))
-      }
-    })
+    const respuesta = pedidos.map((pedido: any) => PedidoService.formatearPayloadCaja(pedido))
 
     res.status(200).json(respuesta)
   } catch (error) {
@@ -400,7 +366,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
       return
     }
 
-    if (pedido.estado !== 'ENTREGADO') {
+    if (pedido.estado !== ESTADOS_PEDIDO.ENTREGADO) {
       res.status(400).json({
         mensaje: 'Solo se puede solicitar cuenta de un pedido entregado.'
       })
@@ -409,7 +375,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
 
     const mesaActualizada = await Mesa.findByIdAndUpdate(
       pedido.mesa,
-      { estado: 'Cuenta Solicitada' },
+      { estado: ESTADOS_MESA.CUENTA_SOLICITADA },
       { new: true }
     )
 
@@ -423,25 +389,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
       .populate('usuario', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
 
-    const payload = {
-      pedidoId: pedidoPoblado?._id,
-      codigo: (pedidoPoblado as any)?.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`,
-      mesaId: mesaActualizada._id,
-      mesaNombre: mesaActualizada.numero,
-      meseroNombre: (pedidoPoblado as any)?.usuario
-        ? `${(pedidoPoblado as any).usuario.nombre || ''} ${(pedidoPoblado as any).usuario.apellido || ''}`.trim()
-        : 'Sin mesero',
-      total: pedidoPoblado?.total || pedido.total,
-      items:
-        (pedidoPoblado as any)?.detalles?.map((detalle: any) => ({
-          platoId: detalle.plato?._id || detalle.plato,
-          nombre: detalle.plato?.nombre || 'Plato no disponible',
-          cantidad: detalle.cantidad,
-          precioUnitario: detalle.precioUnitario,
-          subtotal: detalle.subtotal,
-          observacion: detalle.observacion
-        })) || []
-    }
+    const payload = PedidoService.formatearPayloadCaja(pedidoPoblado, mesaActualizada)
 
     try {
       const io = getIO()

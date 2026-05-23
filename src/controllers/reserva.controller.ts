@@ -48,6 +48,10 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       return res.status(404).json({ mensaje: 'La mesa no existe en la base de datos.' })
     }
 
+    if (cantidadPersonas > mesaEncontrada.capacidad) {
+      return res.status(400).json({ mensaje: `La cantidad de personas (${cantidadPersonas}) supera la capacidad de la mesa (${mesaEncontrada.capacidad}).` })
+    }
+
     const reservaExistente = await Reserva.findOne({
       mesa: mesaId,
       fecha: new Date(fechaReserva),
@@ -68,9 +72,8 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
 
-    // Generar código único legible RES-XXXX
-    const count = await Reserva.countDocuments()
-    const codigoGenerado = `RES-${String(count + 1).padStart(4, '0')}`
+    // RESOLUCIÓN RIESGO LÓGICO: Usamos el contador atómico para asegurar que el código RES-XXXX sea único (Evitamos race conditions)
+    const codigoGenerado = `RES-${String(contadorDoc.secuencia).padStart(4, '0')}`
 
     // RESOLUCIÓN: Mantenemos ambos identificadores
     const nuevaReserva = new Reserva({

@@ -4,6 +4,7 @@ import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 import nodemailer from 'nodemailer'
+import Reserva from '../models/Reserva'
 // 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -75,8 +76,16 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     await pedido.save()
 
+    let nuevoEstado = 'Libre'
     if (pedido.mesa) {
-      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: 'Libre' })
+      const inicioHoy = new Date()
+      inicioHoy.setHours(0, 0, 0, 0)
+      const reservasPendientes = await Reserva.countDocuments({
+        mesa: pedido.mesa,
+        fecha: { $gte: inicioHoy }
+      })
+      nuevoEstado = reservasPendientes > 0 ? 'Reservada' : 'Libre'
+      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: nuevoEstado })
     }
 
     try {
@@ -87,7 +96,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
         const mesaLiberada = await Mesa.findById(pedido.mesa)
         io.emit('mesas:updated', {
           id: pedido.mesa.toString(),
-          status: 'Disponible',
+          status: nuevoEstado === 'Libre' ? 'Disponible' : 'Reservada',
           name: mesaLiberada?.numero || 'Mesa'
         })
         io.emit('mesas:pago_completado', {
