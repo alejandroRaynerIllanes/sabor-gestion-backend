@@ -91,9 +91,12 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     await nuevaReserva.save()
 
     // 1. PROTECCIÓN CRÍTICA (Bug 1): Solo bloqueamos la mesa si la reserva es para HOY y si estaba Libre.
-    const hoyStr = new Date().toISOString().split('T')[0]
-    const fechaReservaStr = new Date(fechaReserva).toISOString().split('T')[0]
-    const esParaHoy = hoyStr === fechaReservaStr
+    const hoy = new Date()
+    const fechaRes = new Date(fechaReserva)
+    const esParaHoy = 
+      hoy.getFullYear() === fechaRes.getFullYear() &&
+      hoy.getMonth() === fechaRes.getMonth() &&
+      hoy.getDate() === fechaRes.getDate()
     
     let cambiarAReservada = false
     if (esParaHoy && mesaEncontrada.estado === 'Libre') {
