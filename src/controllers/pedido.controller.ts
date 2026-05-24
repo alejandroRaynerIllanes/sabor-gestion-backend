@@ -54,37 +54,33 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
 
 export const obtenerPedidos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { hoy, fecha, mesa, activo, cajero, mesero } = req.query
+    const { hoy, fecha, fechaInicio, fechaFin, mesa, activo, cajero, mesero } = req.query
     const filtro: any = {}
 
     if (hoy === 'true') {
       const inicioHoy = new Date(); inicioHoy.setHours(0, 0, 0, 0);
       const finHoy = new Date(); finHoy.setHours(23, 59, 59, 999);
       filtro.createdAt = { $gte: inicioHoy, $lte: finHoy };
+    } else if (fechaInicio && fechaFin) {
+      const inicio = new Date(`${fechaInicio}T00:00:00`);
+      const fin = new Date(`${fechaFin}T23:59:59.999`);
+      filtro.createdAt = { $gte: inicio, $lte: fin };
     } else if (fecha) {
       const inicio = new Date(`${fecha}T00:00:00`);
       const fin = new Date(`${fecha}T23:59:59.999`);
       filtro.createdAt = { $gte: inicio, $lte: fin };
     }
 
-    if (mesa) {
-      filtro.mesa = mesa;
-    }
-    if (activo === 'true') {
-      filtro.estado = { $in: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'SERVIDO'] };
-    }
-    if (cajero) {
-      filtro.cajeroAsignado = cajero;
-    }
-    if (mesero) {
-      filtro.usuario = mesero;
-    }
+    if (mesa) { filtro.mesa = mesa; }
+    if (activo === 'true') { filtro.estado = { $in: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'SERVIDO'] }; }
+    if (cajero) { filtro.cajeroAsignado = cajero; }
+    if (mesero) { filtro.usuario = mesero; }
 
     const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
       .populate('usuario', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
-      .sort({ createdAt: -1 }) // Los más recientes primero
+      .sort({ createdAt: -1 })
 
     res.status(200).json(pedidos)
   } catch (error) {
