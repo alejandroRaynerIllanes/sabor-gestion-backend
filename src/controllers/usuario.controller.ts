@@ -5,6 +5,7 @@ import Usuario from '../models/Usuario'
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 import CierreCaja from '../models/CierreCaja'
+import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {
@@ -244,6 +245,7 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
 
     // 🔥 REGISTRO AUTOMÁTICO DE CIERRE DE CAJA EN MONGODB
     if ((estado === false || String(estado) === 'false') && reporte) {
+      const fechaCierre = obtenerFechaBolivia()
       const nuevoCierre = new CierreCaja({
         cajeroId: id,
         cajeroNombre: `${usuarioActualizado.nombre} ${usuarioActualizado.apellido || ''}`.trim(),
@@ -254,7 +256,8 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
         descuentos: reporte.descuentos || 0,
         propinas: reporte.propinas || 0,
         pagosProcesados: reporte.pagosProcesados || 0,
-        fechaCierre: new Date()
+        fechaCierreBolivia: formatearFechaBolivia(fechaCierre),
+        fechaCierre
       });
       await nuevoCierre.save();
     }

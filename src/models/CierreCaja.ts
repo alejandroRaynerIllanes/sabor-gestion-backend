@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 
 export interface ICierreCaja extends Document {
   cajeroId: string;
@@ -10,6 +11,7 @@ export interface ICierreCaja extends Document {
   descuentos: number;
   propinas: number;
   pagosProcesados: number;
+  fechaCierreBolivia?: string;
   fechaCierre: Date;
 }
 
@@ -23,7 +25,11 @@ const CierreCajaSchema: Schema = new Schema({
   descuentos: { type: Number, default: 0 },
   propinas: { type: Number, default: 0 },
   pagosProcesados: { type: Number, default: 0 },
-  fechaCierre: { type: Date, default: Date.now }
+  fechaCierreBolivia: {
+    type: String,
+    default: () => formatearFechaBolivia(obtenerFechaBolivia())
+  },
+  fechaCierre: { type: Date, default: obtenerFechaBolivia }
 }, {
   timestamps: true
 });

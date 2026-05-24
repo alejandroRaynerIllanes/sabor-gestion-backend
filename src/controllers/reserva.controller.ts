@@ -6,6 +6,14 @@ import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 import { CustomRequest } from '../middlewares/auth.middleware'
 import Contador from '../models/Contador'
+import { obtenerFechaBolivia } from '../utils/fechaBolivia'
+
+const formatearFechaReservaBolivia = (fechaReserva: string, horaReserva: string): string => {
+  const [anio, mes, dia] = String(fechaReserva).split('T')[0].split('-')
+  const horaNormalizada = String(horaReserva).length === 5 ? `${horaReserva}:00` : horaReserva
+
+  return `${dia}/${mes}/${anio}, ${horaNormalizada}`
+}
 
 export const crearReserva = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
@@ -79,6 +87,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     const nuevaReserva = new Reserva({
       codigo: codigoGenerado,
       pedidoId: elPedidoIdFormateado,
+      fechaBolivia: formatearFechaReservaBolivia(fechaReserva, horaReserva),
       fecha: new Date(fechaReserva),
       hora: horaReserva,
       clienteNombre: nombreCliente,
@@ -91,7 +100,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     await nuevaReserva.save()
 
     // 1. PROTECCIÓN CRÍTICA (Bug 1): Solo bloqueamos la mesa si la reserva es para HOY y si estaba Libre.
-    const hoy = new Date()
+    const hoy = obtenerFechaBolivia()
     const fechaRes = new Date(fechaReserva)
     const esParaHoy = 
       hoy.getFullYear() === fechaRes.getFullYear() &&
@@ -116,6 +125,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       numeroPedido: reservaGuardada?.pedidoId,
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
+      dateBolivia: reservaGuardada?.fechaBolivia,
       date: reservaGuardada?.fecha,
       time: reservaGuardada?.hora,
       vip: reservaGuardada?.vip,
@@ -157,6 +167,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
       numeroPedido: reserva.pedidoId,
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
+      dateBolivia: reserva.fechaBolivia,
       date: reserva.fecha,
       time: reserva.hora,
       vip: reserva.vip,
@@ -192,7 +203,7 @@ export const eliminarReserva = async (req: CustomRequest, res: Response) => {
     await Reserva.findByIdAndDelete(id)
 
     // Contamos solo las reservas desde hoy hacia el futuro (las pasadas ya no importan)
-    const inicioHoy = new Date()
+    const inicioHoy = obtenerFechaBolivia()
     inicioHoy.setHours(0, 0, 0, 0)
     const reservasRestantes = await Reserva.countDocuments({ 
       mesa: mesaId,

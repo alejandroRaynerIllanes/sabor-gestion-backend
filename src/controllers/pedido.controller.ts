@@ -1,5 +1,6 @@
 // src/controllers/pedido.controller.ts
 import { Request, Response } from 'express'
+import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
@@ -7,12 +8,34 @@ import CierreCaja from '../models/CierreCaja'
 import Reserva from '../models/Reserva'
 import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
 import { PedidoService } from '../services/pedido.service'
+import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
+
+const agregarFechaBoliviaPedido = (pedido: any) => {
+  const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
+  const { _id, codigo, fechaHoraBolivia, fechaHora, ...restoPedido } = pedidoPlano
+
+  return {
+    _id,
+    codigo,
+    ...restoPedido,
+    fechaHoraBolivia:
+      fechaHoraBolivia || (fechaHora ? formatearFechaBolivia(fechaHora) : undefined),
+    fechaHora
+  }
+}
 
 export const crearPedido = async (req: Request, res: Response): Promise<void> => {
   try {
     // 1. Registrar el nuevo pedido y generar un código seguro basado en su ObjectID
-    const nuevoPedido = new Pedido(req.body)
-    nuevoPedido.codigo = `PED-${String(nuevoPedido._id).slice(-4).toUpperCase()}`
+    const pedidoId = new mongoose.Types.ObjectId()
+    const fechaHora = obtenerFechaBolivia()
+    const nuevoPedido = new Pedido({
+      _id: pedidoId,
+      codigo: `PED-${String(pedidoId).slice(-4).toUpperCase()}`,
+      ...req.body,
+      fechaHoraBolivia: formatearFechaBolivia(fechaHora),
+      fechaHora
+    })
     await nuevoPedido.save()
 
     // 2. Poblar datos para que cocina reciba el nombre del plato y no solo el ID
@@ -49,7 +72,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
       console.warn('Pedido guardado, pero falló la notificación en tiempo real')
     }
 
-    res.status(201).json(nuevoPedido)
+    res.status(201).json(agregarFechaBoliviaPedido(nuevoPedido))
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al registrar el pedido', error: err.message })
@@ -63,17 +86,29 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
 
     // 🔥 Endpoint para consultar los Reportes de Cierre reales de la BD
     if (reportesCierre === 'true') {
-      const limite = new Date(); 
+      const limite = obtenerFechaBolivia(); 
       limite.setHours(limite.getHours() - 48); // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
       const cierres = await CierreCaja.find({ 
         fechaCierre: { $gte: limite } 
       }).sort({ fechaCierre: -1 });
-      res.status(200).json(cierres);
+      const cierresFormateados = cierres.map((cierre: any) => {
+        const cierrePlano = typeof cierre.toObject === 'function' ? cierre.toObject() : cierre
+        const { fechaCierreBolivia, fechaCierre, ...restoCierre } = cierrePlano
+
+        return {
+          ...restoCierre,
+          fechaCierreBolivia:
+            fechaCierreBolivia || (fechaCierre ? formatearFechaBolivia(fechaCierre) : undefined),
+          fechaCierre
+        }
+      })
+
+      res.status(200).json(cierresFormateados);
       return;
     }
 
     if (hoy === 'true') {
-      const inicioHoy = new Date()
+      const inicioHoy = obtenerFechaBolivia()
       inicioHoy.setHours(0, 0, 0, 0)
       const finHoy = new Date()
       finHoy.setHours(23, 59, 59, 999)
@@ -104,7 +139,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       .populate('detalles.plato', 'nombre precio')
       .sort({ createdAt: -1 }) // Los más recientes primero
 
-    res.status(200).json(pedidos)
+    res.status(200).json(pedidos.map((pedido) => agregarFechaBoliviaPedido(pedido)))
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al obtener los pedidos', error: err.message })
@@ -126,7 +161,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
 
     // Si el pedido tenía una mesa asignada, la liberamos
     if (pedido.mesa) {
-      const inicioHoy = new Date()
+      const inicioHoy = obtenerFechaBolivia()
       inicioHoy.setHours(0, 0, 0, 0)
       const reservasPendientes = await Reserva.countDocuments({
         mesa: pedido.mesa,
@@ -151,7 +186,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
 
     res.status(200).json({
       mensaje: 'Pedido anulado y mesa liberada correctamente',
-      pedido
+      pedido: agregarFechaBoliviaPedido(pedido)
     })
   } catch (error) {
     const err = error as Error
@@ -212,7 +247,7 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
 
     res.status(200).json({
       mensaje: `Pedido movido a ${estado}`,
-      pedido: pedidoActualizado
+      pedido: agregarFechaBoliviaPedido(pedidoActualizado)
     })
   } catch (error) {
     const err = error as Error
@@ -313,7 +348,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       } catch (e) {}
     }
 
-    res.status(200).json(pedidoActualizado)
+    res.status(200).json(agregarFechaBoliviaPedido(pedidoActualizado))
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al actualizar el pedido', error: err.message })
@@ -352,7 +387,10 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
       .sort({ updatedAt: -1 })
 
     // 3. Formateamos la respuesta para que sea cómoda para el frontend
-    const respuesta = pedidos.map((pedido: any) => PedidoService.formatearPayloadCaja(pedido))
+    const respuesta = pedidos.map((pedido: any) => ({
+      ...PedidoService.formatearPayloadCaja(pedido),
+      fechaHoraBolivia: pedido.fechaHora ? formatearFechaBolivia(pedido.fechaHora) : undefined
+    }))
 
     res.status(200).json(respuesta)
   } catch (error) {

@@ -6,6 +6,7 @@ import { getIO } from '../socket/socket'
 import nodemailer from 'nodemailer'
 import Reserva from '../models/Reserva'
 import Pago from '../models/Pago'
+import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 // 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -85,6 +86,9 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     await pedido.save()
 
+    const fechaEnvioCaja = obtenerFechaBolivia()
+    const fechaPago = obtenerFechaBolivia()
+
     // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
     // Separamos la lógica contable y creamos el registro financiero puro
     const nuevoPago = new Pago({
@@ -102,7 +106,10 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       totalFinal: totalFinal,
       metodoPago: metodoPago,
       estadoPago: 'Pagado',
-      fechaPago: new Date()
+      fechaEnvioCajaBolivia: formatearFechaBolivia(fechaEnvioCaja),
+      fechaEnvioCaja,
+      fechaPagoBolivia: formatearFechaBolivia(fechaPago),
+      fechaPago
     })
     await nuevoPago.save()
 
@@ -145,6 +152,8 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim()
       : 'Sin mesero'
 
+    const fechaComprobante = obtenerFechaBolivia()
+
     res.status(200).json({
       mensaje: 'Pago procesado exitosamente',
       comprobante: {
@@ -155,7 +164,8 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
         propinaAplicada: montoPropina,
         totalPagado: totalFinal,
         metodoPago: ped.metodoPago,
-        fecha: new Date()
+        fechaBolivia: formatearFechaBolivia(fechaComprobante),
+        fecha: fechaComprobante
       }
     })
   } catch (error) {
@@ -175,7 +185,7 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
       io.emit('caja:pago_confirmado', {
         pedidoId,
         mensaje: 'Transferencia QR recibida',
-        fecha: new Date()
+        fecha: obtenerFechaBolivia()
       })
     } catch (socketError) {
       console.warn('Falló la emisión del WebSocket de simulación:', socketError)
