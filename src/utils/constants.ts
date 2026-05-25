@@ -5,7 +5,7 @@ export const ESTADOS_MESA = {
   OCUPADA: 'Ocupada',
   RESERVADA: 'Reservada',
   CUENTA_SOLICITADA: 'Cuenta Solicitada'
-} as const;
+} as const
 
 export const ESTADOS_PEDIDO = {
   ABIERTO: 'ABIERTO',
@@ -13,4 +13,4 @@ export const ESTADOS_PEDIDO = {
   ENTREGADO: 'ENTREGADO',
   CANCELADO: 'CANCELADO',
   CERRADO: 'CERRADO'
-} as const;
+} as const

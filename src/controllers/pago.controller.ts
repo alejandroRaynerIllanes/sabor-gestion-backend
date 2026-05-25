@@ -64,16 +64,14 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     const ped: any = pedido
     const subtotal = ped.subtotalCierre || pedido.total || 0
-    
+
     // 🛠️ BUG FIX: Calcular los montos reales si el frontend envió porcentajes en el momento del pago
-    const montoDescuento = porcentajeDescuento > 0 
-      ? (subtotal * (porcentajeDescuento / 100)) 
-      : (ped.montoDescuento || 0)
-      
-    const montoPropina = porcentajePropina > 0 
-      ? (subtotal * (porcentajePropina / 100)) 
-      : (ped.montoPropina || 0)
-      
+    const montoDescuento =
+      porcentajeDescuento > 0 ? subtotal * (porcentajeDescuento / 100) : ped.montoDescuento || 0
+
+    const montoPropina =
+      porcentajePropina > 0 ? subtotal * (porcentajePropina / 100) : ped.montoPropina || 0
+
     const totalFinal = subtotal - montoDescuento + montoPropina
 
     pedido.estado = 'CERRADO'
