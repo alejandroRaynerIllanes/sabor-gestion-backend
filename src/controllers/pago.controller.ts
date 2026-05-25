@@ -260,8 +260,8 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
 
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true, // true para port 465
+      port: 587,
+      secure: false, // true para port 465
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
