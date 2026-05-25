@@ -57,11 +57,9 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     }
 
     if (cantidadPersonas > mesaEncontrada.capacidad) {
-      return res
-        .status(400)
-        .json({
-          mensaje: `La cantidad de personas (${cantidadPersonas}) supera la capacidad de la mesa (${mesaEncontrada.capacidad}).`
-        })
+      return res.status(400).json({
+        mensaje: `La cantidad de personas (${cantidadPersonas}) supera la capacidad de la mesa (${mesaEncontrada.capacidad}).`
+      })
     }
 
     const reservaExistente = await Reserva.findOne({
