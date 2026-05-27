@@ -1,3 +1,4 @@
+//src/models/CierreCaja.ts
 import mongoose, { Schema, Document } from 'mongoose';
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 
