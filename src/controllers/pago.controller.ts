@@ -88,6 +88,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     const fechaEnvioCaja = obtenerFechaBolivia()
     const fechaPago = obtenerFechaBolivia()
+    const momentoExacto = obtenerFechaBolivia();
 
     // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
     // Separamos la lógica contable y creamos el registro financiero puro
@@ -106,10 +107,10 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
       totalFinal: totalFinal,
       metodoPago: metodoPago,
       estadoPago: 'Pagado',
-      fechaEnvioCajaBolivia: formatearFechaBolivia(fechaEnvioCaja),
-      fechaEnvioCaja,
-      fechaPagoBolivia: formatearFechaBolivia(fechaPago),
-      fechaPago
+      fechaEnvioCajaBolivia: formatearFechaBolivia(momentoExacto),
+      fechaEnvioCaja: momentoExacto,
+      fechaPagoBolivia: formatearFechaBolivia(momentoExacto),
+      fechaPago: momentoExacto
     })
     await nuevoPago.save()
 
