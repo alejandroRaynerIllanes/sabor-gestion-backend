@@ -25,7 +25,7 @@ app.use(morgan('dev'))
 app.use(
   cors({
     origin: [
-      'http://localhost:5173', 
+      'http://localhost:5173',
       'https://quirquinita.onrender.com', // <-- Reemplaza la URL vieja por esta
       'https://tis-pied.vercel.app'
     ],
@@ -33,7 +33,7 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   })
-);
+)
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 

@@ -6,6 +6,14 @@ import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 import { CustomRequest } from '../middlewares/auth.middleware'
 import Contador from '../models/Contador'
+import { obtenerFechaBolivia } from '../utils/fechaBolivia'
+
+const formatearFechaReservaBolivia = (fechaReserva: string, horaReserva: string): string => {
+  const [anio, mes, dia] = String(fechaReserva).split('T')[0].split('-')
+  const horaNormalizada = String(horaReserva).length === 5 ? `${horaReserva}:00` : horaReserva
+
+  return `${dia}/${mes}/${anio}, ${horaNormalizada}`
+}
 
 export const crearReserva = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
@@ -48,6 +56,10 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       return res.status(404).json({ mensaje: 'La mesa no existe en la base de datos.' })
     }
 
+    if (cantidadPersonas > mesaEncontrada.capacidad) {
+      return res.status(400).json({ mensaje: `La cantidad de personas (${cantidadPersonas}) supera la capacidad de la mesa (${mesaEncontrada.capacidad}).` })
+    }
+
     const reservaExistente = await Reserva.findOne({
       mesa: mesaId,
       fecha: new Date(fechaReserva),
@@ -59,7 +71,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
         mensaje: 'Ya existe una reserva para esa mesa en esa fecha y hora.'
       })
     }
-    
+
     const contadorDoc: any = await Contador.findOneAndUpdate(
       { nombre_secuencia: 'reservas_restaurante' },
       { $inc: { secuencia: 1 } },
@@ -68,14 +80,14 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
 
-    // Generar código único legible RES-XXXX
-    const count = await Reserva.countDocuments()
-    const codigoGenerado = `RES-${String(count + 1).padStart(4, '0')}`
+    // RESOLUCIÓN RIESGO LÓGICO: Usamos el contador atómico para asegurar que el código RES-XXXX sea único (Evitamos race conditions)
+    const codigoGenerado = `RES-${String(contadorDoc.secuencia).padStart(4, '0')}`
 
     // RESOLUCIÓN: Mantenemos ambos identificadores
     const nuevaReserva = new Reserva({
       codigo: codigoGenerado,
       pedidoId: elPedidoIdFormateado,
+      fechaBolivia: formatearFechaReservaBolivia(fechaReserva, horaReserva),
       fecha: new Date(fechaReserva),
       hora: horaReserva,
       clienteNombre: nombreCliente,
@@ -87,8 +99,19 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     await nuevaReserva.save()
 
-    // 1. Lógica de clonD: Actualizamos el estado de la mesa a 'Reservada'
-    await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+    // 1. PROTECCIÓN CRÍTICA (Bug 1): Solo bloqueamos la mesa si la reserva es para HOY y si estaba Libre.
+    const hoy = obtenerFechaBolivia()
+    const fechaRes = new Date(fechaReserva)
+    const esParaHoy = 
+      hoy.getFullYear() === fechaRes.getFullYear() &&
+      hoy.getMonth() === fechaRes.getMonth() &&
+      hoy.getDate() === fechaRes.getDate()
+    
+    let cambiarAReservada = false
+    if (esParaHoy && mesaEncontrada.estado === 'Libre') {
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+      cambiarAReservada = true
+    }
 
     // 2. Lógica de clonD: Hacemos el populate para tener toda la info
     const reservaGuardada = await Reserva.findById(nuevaReserva._id)
@@ -102,6 +125,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       numeroPedido: reservaGuardada?.pedidoId,
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
+      dateBolivia: reservaGuardada?.fechaBolivia,
       date: reservaGuardada?.fecha,
       time: reservaGuardada?.hora,
       vip: reservaGuardada?.vip,
@@ -114,8 +138,10 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     try {
       getIO().emit('nueva_reserva', reservaFormateada)
 
-      // Emitimos también que la mesa se actualizó para que en el mapa cambie a "Reservada" en tiempo real
-      getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+      if (cambiarAReservada) {
+        // Emitimos también que la mesa se actualizó para que en el mapa cambie a "Reservada" en tiempo real
+        getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
+      }
     } catch (socketError) {
       console.error('Socket no inicializado o error al emitir:', socketError)
     }
@@ -141,6 +167,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
       numeroPedido: reserva.pedidoId,
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
+      dateBolivia: reserva.fechaBolivia,
       date: reserva.fecha,
       time: reserva.hora,
       vip: reserva.vip,
@@ -171,23 +198,33 @@ export const eliminarReserva = async (req: CustomRequest, res: Response) => {
     }
 
     const mesaId = reserva.mesa
+    const mesaActual = await Mesa.findById(mesaId) // Recuperamos su estado real antes de eliminar
 
     await Reserva.findByIdAndDelete(id)
 
-    const reservasRestantes = await Reserva.countDocuments({ mesa: mesaId })
+    // Contamos solo las reservas desde hoy hacia el futuro (las pasadas ya no importan)
+    const inicioHoy = obtenerFechaBolivia()
+    inicioHoy.setHours(0, 0, 0, 0)
+    const reservasRestantes = await Reserva.countDocuments({ 
+      mesa: mesaId,
+      fecha: { $gte: inicioHoy }
+    })
 
-    if (reservasRestantes === 0) {
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
-      try {
-        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
-        getIO().emit('mesas:updated', { id: mesaId, status: 'Disponible' })
-      } catch (e) {}
-    } else {
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
-      try {
-        getIO().emit('reserva_eliminada', { id, tableId: mesaId })
-        getIO().emit('mesas:updated', { id: mesaId, status: 'Reservada' })
-      } catch (e) {}
+    try {
+      // Siempre avisamos que la reserva desapareció de la lista de la interfaz
+      getIO().emit('reserva_eliminada', { id, tableId: mesaId })
+      
+      // PROTECCIÓN CRÍTICA (Bug 3): Solo pasamos a Libre si la mesa actualmente estaba "Reservada"
+      // Si estaba "Ocupada" o "Cuenta Solicitada", NO debemos tocarla.
+      if (mesaActual && mesaActual.estado === 'Reservada') {
+        if (reservasRestantes === 0) {
+          await Mesa.findByIdAndUpdate(mesaId, { estado: 'Libre' })
+          getIO().emit('mesas:updated', { id: mesaId, status: 'Disponible' })
+        }
+        // Si quedan reservas (> 0), se queda en Reservada, no hacemos nada más.
+      }
+    } catch (e) {
+      console.warn('Error emitiendo socket de eliminación', e)
     }
 
     return res.status(200).json({
