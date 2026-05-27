@@ -36,11 +36,14 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
     console.log(`[LOGIN] Éxito: ${usuarioEncontrado.nombre} ha logueado exitosamente.`)
 
     // Convertir el documento a objeto puro para poder leer campos fuera del esquema como 'ubicacion'
-    const userObj: any = typeof usuarioEncontrado.toObject === 'function' ? usuarioEncontrado.toObject() : usuarioEncontrado;
+    const userObj: any =
+      typeof usuarioEncontrado.toObject === 'function'
+        ? usuarioEncontrado.toObject()
+        : usuarioEncontrado
 
     const token = jwt.sign(
-      { 
-        id: userObj._id, 
+      {
+        id: userObj._id,
         rol: userObj.rol,
         zona: userObj.ubicacion || userObj.zona || ''
       },
@@ -78,13 +81,20 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
 
     const regexNombres = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/
     if (!regexNombres.test(nombre) || nombre.length > 30) {
-      res.status(400).json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' }); return;
+      res
+        .status(400)
+        .json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' })
+      return
     }
     if (!regexNombres.test(apellido) || apellido.length > 30) {
-      res.status(400).json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' }); return;
+      res
+        .status(400)
+        .json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' })
+      return
     }
     if (!/^\d+$/.test(ci) || ci.length > 8) {
-      res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' }); return;
+      res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
+      return
     }
 
     const usuarioExistente = await Usuario.findOne({

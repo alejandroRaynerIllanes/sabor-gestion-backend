@@ -6,12 +6,16 @@ export class EmailService {
 
   constructor() {
     this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false,
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // true para port 465
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      },
+      tls: {
+        // No fallar en certificados inválidos en servidores de Render
+        rejectUnauthorized: false
       }
     })
   }
@@ -19,13 +23,13 @@ export class EmailService {
   async enviarEmail(to: string, subject: string, html: string): Promise<void> {
     try {
       await this.transporter.sendMail({
-        from: process.env.SMTP_FROM || '"Sistema" <no-reply@sistema.com>',
+        from: `"Sabor & Gestión" <${process.env.EMAIL_USER}>`,
         to,
         subject,
         html
       })
     } catch (error) {
-      console.error('Error enviando email:', error)
+      console.error('Error enviando correo:', error)
       throw new Error('No se pudo enviar el email')
     }
   }

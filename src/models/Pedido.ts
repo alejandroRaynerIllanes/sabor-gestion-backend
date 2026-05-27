@@ -1,5 +1,6 @@
 // src/models/Pedido.ts
 import mongoose, { Schema, Document } from 'mongoose'
+import { obtenerFechaBolivia } from '../utils/fechaBolivia'
 
 // 1. Interfaz y Esquema para el Detalle
 export interface IDetallePedido {
@@ -24,6 +25,7 @@ const DetallePedidoSchema = new Schema<IDetallePedido>(
 // 2. Interfaz y Esquema para el Pedido principal
 export interface IPedido extends Document {
   codigo: string
+  fechaHoraBolivia?: string
   fechaHora: Date
   estado: string
   total: number
@@ -36,6 +38,10 @@ export interface IPedido extends Document {
   montoDescuento?: number
   montoPropina?: number
   subtotalCierre?: number
+  clienteNombre?: string
+  clienteCI?: string
+  clienteNIT?: string
+  cajeroAsignado?: mongoose.Types.ObjectId
 }
 
 const PedidoSchema = new Schema(
@@ -46,7 +52,6 @@ const PedidoSchema = new Schema(
       unique: true,
       trim: true
     },
-    fechaHora: { type: Date, default: Date.now },
     estado: {
       type: String,
       enum: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'CANCELADO', 'CERRADO'],
@@ -66,7 +71,13 @@ const PedidoSchema = new Schema(
     },
     montoDescuento: { type: Number, default: 0 },
     montoPropina: { type: Number, default: 0 },
-    subtotalCierre: { type: Number, default: 0 } // Total antes de descuentos/propinas
+    subtotalCierre: { type: Number, default: 0 }, // Total antes de descuentos/propinas
+    clienteNombre: { type: String, required: false },
+    clienteCI: { type: String, required: false },
+    clienteNIT: { type: String, required: false },
+    cajeroAsignado: { type: Schema.Types.ObjectId, ref: 'Usuario', required: false },
+    fechaHora: { type: Date, default: obtenerFechaBolivia },
+    fechaHoraBolivia: { type: String, required: false }
   },
   {
     timestamps: true,
