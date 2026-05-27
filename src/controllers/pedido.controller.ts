@@ -144,7 +144,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       .populate('usuario', 'nombre apellido')
       .populate('cajeroAsignado', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
-      .sort({ createdAt: -1 }) // Los más recientes primero
+      .sort({ createdAt: -1 })
 
     res.status(200).json(pedidos.map((pedido) => agregarFechaBoliviaPedido(pedido)))
   } catch (error) {
