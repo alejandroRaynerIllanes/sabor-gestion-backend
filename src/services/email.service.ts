@@ -1,41 +1,32 @@
 //src/services/email.service.ts
 
 export async function enviarCorreo(to: string, subject: string, html: string): Promise<void> {
-  const apiKey = process.env.BREVO_API_KEY
-  const senderEmail = process.env.EMAIL_USER
+  const apiKey = process.env.RESEND_API_KEY
 
   if (!apiKey) {
-    throw new Error('Falta la variable de entorno BREVO_API_KEY')
+    throw new Error('Falta la variable de entorno RESEND_API_KEY')
   }
 
-  if (!senderEmail) {
-    throw new Error('Falta la variable de entorno EMAIL_USER')
-  }
-
-  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+  const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      accept: 'application/json',
-      'api-key': apiKey,
-      'content-type': 'application/json'
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      sender: {
-        name: 'Sabor & Gestión',
-        email: senderEmail
-      },
-      to: [{ email: to }],
+      from: 'Sabor y Gestion ',
+      to: [to],
       subject,
-      htmlContent: html
+      html
     })
   })
 
   if (!response.ok) {
-    const errorBody = await response
+    const err = await response
       .json()
-      .catch(() => ({ message: 'No se pudo parsear el error de Brevo' }))
-    console.error('Error Brevo SMTP API:', errorBody)
-    throw new Error('No se pudo enviar el correo a través de Brevo')
+      .catch(() => ({ message: 'No se pudo parsear el error de Resend' }))
+    console.error('Error Resend API:', err)
+    throw new Error('No se pudo enviar el correo a través de Resend')
   }
 }
 
