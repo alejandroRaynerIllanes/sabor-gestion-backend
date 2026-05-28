@@ -1,17 +1,23 @@
 //src/services/email.service.ts
 import nodemailer from 'nodemailer'
+import type SMTPTransport from 'nodemailer/lib/smtp-transport'
 
 let transporter: nodemailer.Transporter | null = null
+
+type SMTPTransportOptionsWithFamily = SMTPTransport.Options & {
+  family: 4
+}
 
 function getTransporter(): nodemailer.Transporter {
   if (!transporter) {
     const user = process.env.EMAIL_USER
     const pass = (process.env.EMAIL_PASS || '').replace(/[\s"]/g, '')
 
-    transporter = nodemailer.createTransport({
+    const transportOptions: SMTPTransportOptionsWithFamily = {
       host: 'smtp.gmail.com',
       port: 587,
       secure: false, // true para port 465
+      family: 4,
       auth: {
         user,
         pass
@@ -20,7 +26,9 @@ function getTransporter(): nodemailer.Transporter {
         // No fallar en certificados inválidos en servidores de Render
         rejectUnauthorized: false
       }
-    })
+    }
+
+    transporter = nodemailer.createTransport(transportOptions)
   }
 
   return transporter
