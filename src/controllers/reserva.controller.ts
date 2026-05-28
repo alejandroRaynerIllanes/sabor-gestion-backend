@@ -57,7 +57,9 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     }
 
     if (cantidadPersonas > mesaEncontrada.capacidad) {
-      return res.status(400).json({ mensaje: `La cantidad de personas (${cantidadPersonas}) supera la capacidad de la mesa (${mesaEncontrada.capacidad}).` })
+      return res.status(400).json({
+        mensaje: `La cantidad de personas (${cantidadPersonas}) supera la capacidad de la mesa (${mesaEncontrada.capacidad}).`
+      })
     }
 
     const reservaExistente = await Reserva.findOne({
@@ -102,11 +104,11 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     // 1. PROTECCIÓN CRÍTICA (Bug 1): Solo bloqueamos la mesa si la reserva es para HOY y si estaba Libre.
     const hoy = obtenerFechaBolivia()
     const fechaRes = new Date(fechaReserva)
-    const esParaHoy = 
+    const esParaHoy =
       hoy.getFullYear() === fechaRes.getFullYear() &&
       hoy.getMonth() === fechaRes.getMonth() &&
       hoy.getDate() === fechaRes.getDate()
-    
+
     let cambiarAReservada = false
     if (esParaHoy && mesaEncontrada.estado === 'Libre') {
       await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
@@ -205,7 +207,7 @@ export const eliminarReserva = async (req: CustomRequest, res: Response) => {
     // Contamos solo las reservas desde hoy hacia el futuro (las pasadas ya no importan)
     const inicioHoy = obtenerFechaBolivia()
     inicioHoy.setHours(0, 0, 0, 0)
-    const reservasRestantes = await Reserva.countDocuments({ 
+    const reservasRestantes = await Reserva.countDocuments({
       mesa: mesaId,
       fecha: { $gte: inicioHoy }
     })
@@ -213,7 +215,7 @@ export const eliminarReserva = async (req: CustomRequest, res: Response) => {
     try {
       // Siempre avisamos que la reserva desapareció de la lista de la interfaz
       getIO().emit('reserva_eliminada', { id, tableId: mesaId })
-      
+
       // PROTECCIÓN CRÍTICA (Bug 3): Solo pasamos a Libre si la mesa actualmente estaba "Reservada"
       // Si estaba "Ocupada" o "Cuenta Solicitada", NO debemos tocarla.
       if (mesaActual && mesaActual.estado === 'Reservada') {

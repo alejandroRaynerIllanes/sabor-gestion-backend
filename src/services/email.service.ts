@@ -1,17 +1,20 @@
 //src/services/email.service.ts
 import nodemailer from 'nodemailer'
 
-export class EmailService {
-  private transporter: nodemailer.Transporter
+let transporter: nodemailer.Transporter | null = null
 
-  constructor() {
-    this.transporter = nodemailer.createTransport({
+function getTransporter(): nodemailer.Transporter {
+  if (!transporter) {
+    const user = process.env.EMAIL_USER
+    const pass = (process.env.EMAIL_PASS || '').replace(/[\s"]/g, '')
+
+    transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true, // true para port 465
+      port: 587,
+      secure: false, // true para port 465
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user,
+        pass
       },
       tls: {
         // No fallar en certificados inválidos en servidores de Render
@@ -20,14 +23,24 @@ export class EmailService {
     })
   }
 
+  return transporter
+}
+
+export async function enviarCorreo(to: string, subject: string, html: string): Promise<void> {
+  const t = getTransporter()
+
+  await t.sendMail({
+    from: `"Sabor & Gestión" <${process.env.EMAIL_USER}>`,
+    to,
+    subject,
+    html
+  })
+}
+
+export class EmailService {
   async enviarEmail(to: string, subject: string, html: string): Promise<void> {
     try {
-      await this.transporter.sendMail({
-        from: `"Sabor & Gestión" <${process.env.EMAIL_USER}>`,
-        to,
-        subject,
-        html
-      })
+      await enviarCorreo(to, subject, html)
     } catch (error) {
       console.error('Error enviando correo:', error)
       throw new Error('No se pudo enviar el email')

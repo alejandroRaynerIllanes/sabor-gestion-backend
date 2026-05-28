@@ -258,8 +258,8 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
         pagosProcesados: reporte.pagosProcesados || 0,
         fechaCierreBolivia: formatearFechaBolivia(fechaCierre),
         fechaCierre
-      });
-      await nuevoCierre.save();
+      })
+      await nuevoCierre.save()
     }
 
     res.status(200).json({

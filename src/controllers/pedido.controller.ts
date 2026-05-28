@@ -86,11 +86,11 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
 
     // 🔥 Endpoint para consultar los Reportes de Cierre reales de la BD
     if (reportesCierre === 'true') {
-      const limite = obtenerFechaBolivia(); 
-      limite.setHours(limite.getHours() - 48); // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
-      const cierres = await CierreCaja.find({ 
-        fechaCierre: { $gte: limite } 
-      }).sort({ fechaCierre: -1 });
+      const limite = obtenerFechaBolivia()
+      limite.setHours(limite.getHours() - 48) // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
+      const cierres = await CierreCaja.find({
+        fechaCierre: { $gte: limite }
+      }).sort({ fechaCierre: -1 })
       const cierresFormateados = cierres.map((cierre: any) => {
         const cierrePlano = typeof cierre.toObject === 'function' ? cierre.toObject() : cierre
         const { fechaCierreBolivia, fechaCierre, ...restoCierre } = cierrePlano
@@ -103,8 +103,8 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
         }
       })
 
-      res.status(200).json(cierresFormateados);
-      return;
+      res.status(200).json(cierresFormateados)
+      return
     }
 
     if (hoy === 'true') {
@@ -123,7 +123,14 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       filtro.mesa = mesa
     }
     if (activo === 'true') {
-      filtro.estado = { $in: [ESTADOS_PEDIDO.ABIERTO, ESTADOS_PEDIDO.EN_PREPARACION, ESTADOS_PEDIDO.ENTREGADO, 'SERVIDO'] }
+      filtro.estado = {
+        $in: [
+          ESTADOS_PEDIDO.ABIERTO,
+          ESTADOS_PEDIDO.EN_PREPARACION,
+          ESTADOS_PEDIDO.ENTREGADO,
+          'SERVIDO'
+        ]
+      }
     }
     if (cajero) {
       filtro.cajeroAsignado = cajero
@@ -137,7 +144,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       .populate('usuario', 'nombre apellido')
       .populate('cajeroAsignado', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
-      .sort({ createdAt: -1 }) // Los más recientes primero
+      .sort({ createdAt: -1 })
 
     res.status(200).json(pedidos.map((pedido) => agregarFechaBoliviaPedido(pedido)))
   } catch (error) {
@@ -279,7 +286,11 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (detalles !== undefined) updates.detalles = detalles
 
     // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
-    if (pedidoAnterior && pedidoAnterior.estado === ESTADOS_PEDIDO.ENTREGADO && detalles !== undefined) {
+    if (
+      pedidoAnterior &&
+      pedidoAnterior.estado === ESTADOS_PEDIDO.ENTREGADO &&
+      detalles !== undefined
+    ) {
       updates.estado = ESTADOS_PEDIDO.ABIERTO
     }
 
@@ -314,7 +325,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
         typeof pedidoActualizado.mesa === 'object'
           ? (pedidoActualizado.mesa as any)._id
           : pedidoActualizado.mesa
-      
+
       if (updates.estado === ESTADOS_PEDIDO.ABIERTO) {
         await Mesa.findByIdAndUpdate(mesaId, { estado: ESTADOS_MESA.OCUPADA })
         try {
