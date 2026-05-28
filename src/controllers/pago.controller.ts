@@ -7,6 +7,7 @@ import nodemailer from 'nodemailer'
 import Reserva from '../models/Reserva'
 import Pago from '../models/Pago'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
+import { enviarCorreo } from '../services/email.service'
 // 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -256,26 +257,8 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
       `
     })
 
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // true para port 465
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      tls: {
-        // No fallar en certificados inválidos en servidores de Render
-        rejectUnauthorized: false
-      }
-    })
-
     // 2. Diseño del Ticket estilo "Impresora"
-    const mailOptions = {
-      from: `"Sabor & Gestión" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: `Comprobante de Pago - ${codigo}`,
-      html: `
+    const htmlDelRecibo = `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 420px; margin: auto; padding: 30px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff; color: #374151; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
           
           <div style="text-align: center; margin-bottom: 20px;">
@@ -321,13 +304,12 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
 
         </div>
       `
-    }
 
-    await transporter.sendMail(mailOptions)
+    await enviarCorreo(email, 'Comprobante de Pago - ' + codigo, htmlDelRecibo)
 
     res.status(200).json({ mensaje: 'Recibo enviado por correo exitosamente' })
   } catch (error) {
-    console.error('Error al enviar correo:', error)
+    console.error('Error al enviar recibo:', error)
     res.status(500).json({ mensaje: 'Error al enviar el correo' })
   }
 }
