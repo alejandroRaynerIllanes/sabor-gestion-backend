@@ -89,11 +89,13 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
     const fechaEnvioCaja = obtenerFechaBolivia()
     const fechaPago = obtenerFechaBolivia()
     const momentoExacto = obtenerFechaBolivia();
+    const codigoDelPedido = ped.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`;
 
     // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
     // Separamos la lógica contable y creamos el registro financiero puro
     const nuevoPago = new Pago({
       codigoPago: `PAG-${String(pedido._id).slice(-6).toUpperCase()}`,
+      codigoPedido: codigoDelPedido,
       pedido: pedido._id,
       mesa: pedido.mesa,
       mesero: (pedido.usuario as any)?._id || pedido.usuario,
