@@ -5,6 +5,7 @@ import { obtenerFechaBolivia } from '../utils/fechaBolivia'
 // 1. Interfaz y Esquema para el Detalle
 export interface IDetallePedido {
   plato: mongoose.Types.ObjectId
+  nombrePlato?: string
   cantidad: number
   precioUnitario: number
   subtotal: number
@@ -14,6 +15,7 @@ export interface IDetallePedido {
 const DetallePedidoSchema = new Schema<IDetallePedido>(
   {
     plato: { type: Schema.Types.ObjectId, ref: 'Plato', required: true },
+    nombrePlato: { type: String, default: 'Plato' }, // <-- ¡Ahora sí está al mismo nivel!
     cantidad: { type: Number, required: true, min: 1 },
     precioUnitario: { type: Number, required: true },
     subtotal: { type: Number, required: true },

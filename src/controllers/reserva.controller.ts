@@ -99,18 +99,11 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     await nuevaReserva.save()
 
-    // 1. PROTECCIÓN CRÍTICA (Bug 1): Solo bloqueamos la mesa si la reserva es para HOY y si estaba Libre.
-    const hoy = obtenerFechaBolivia()
-    const fechaRes = new Date(fechaReserva)
-    const esParaHoy = 
-      hoy.getFullYear() === fechaRes.getFullYear() &&
-      hoy.getMonth() === fechaRes.getMonth() &&
-      hoy.getDate() === fechaRes.getDate()
-    
-    let cambiarAReservada = false
-    if (esParaHoy && mesaEncontrada.estado === 'Libre') {
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
-      cambiarAReservada = true
+   // 1. Cambio de estado instantáneo: Pasamos a 'Reservada' si actualmente está 'Libre'
+    let cambiarAReservada = false;
+    if (mesaEncontrada.estado === 'Libre') {
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' });
+      cambiarAReservada = true;
     }
 
     // 2. Lógica de clonD: Hacemos el populate para tener toda la info
@@ -122,7 +115,6 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     const reservaFormateada = {
       id: reservaGuardada?._id,
       codigo: reservaGuardada?.codigo,
-      numeroPedido: reservaGuardada?.pedidoId,
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
       dateBolivia: reservaGuardada?.fechaBolivia,
@@ -164,7 +156,6 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
     const reservasFormateadas = reservas.map((reserva) => ({
       id: reserva._id,
       codigo: reserva.codigo,
-      numeroPedido: reserva.pedidoId,
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
       dateBolivia: reserva.fechaBolivia,
