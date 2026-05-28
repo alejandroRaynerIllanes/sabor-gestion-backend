@@ -1,48 +1,42 @@
 //src/services/email.service.ts
-import nodemailer from 'nodemailer'
-import type SMTPTransport from 'nodemailer/lib/smtp-transport'
-
-let transporter: nodemailer.Transporter | null = null
-
-type SMTPTransportOptionsWithFamily = SMTPTransport.Options & {
-  family: 4
-}
-
-function getTransporter(): nodemailer.Transporter {
-  if (!transporter) {
-    const user = process.env.EMAIL_USER
-    const pass = (process.env.EMAIL_PASS || '').replace(/[\s"]/g, '')
-
-    const transportOptions: SMTPTransportOptionsWithFamily = {
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // true para port 465
-      family: 4,
-      auth: {
-        user,
-        pass
-      },
-      tls: {
-        // No fallar en certificados inválidos en servidores de Render
-        rejectUnauthorized: false
-      }
-    }
-
-    transporter = nodemailer.createTransport(transportOptions)
-  }
-
-  return transporter
-}
 
 export async function enviarCorreo(to: string, subject: string, html: string): Promise<void> {
-  const t = getTransporter()
+  const apiKey = process.env.BREVO_API_KEY
+  const senderEmail = process.env.EMAIL_USER
 
-  await t.sendMail({
-    from: `"Sabor & Gestión" <${process.env.EMAIL_USER}>`,
-    to,
-    subject,
-    html
+  if (!apiKey) {
+    throw new Error('Falta la variable de entorno BREVO_API_KEY')
+  }
+
+  if (!senderEmail) {
+    throw new Error('Falta la variable de entorno EMAIL_USER')
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'api-key': apiKey,
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      sender: {
+        name: 'Sabor & Gestión',
+        email: senderEmail
+      },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html
+    })
   })
+
+  if (!response.ok) {
+    const errorBody = await response
+      .json()
+      .catch(() => ({ message: 'No se pudo parsear el error de Brevo' }))
+    console.error('Error Brevo SMTP API:', errorBody)
+    throw new Error('No se pudo enviar el correo a través de Brevo')
+  }
 }
 
 export class EmailService {
