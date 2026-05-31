@@ -9,6 +9,7 @@ import Reserva from '../models/Reserva'
 import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
 import { PedidoService } from '../services/pedido.service'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
+import { procesarDescuentoPedido } from '../services/inventario.service'
 
 const agregarFechaBoliviaPedido = (pedido: any) => {
   const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
@@ -250,6 +251,19 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
       }
     } catch (socketError) {
       console.warn('Estado actualizado, pero falló la emisión del socket')
+    }
+
+    // 3. INVENTARIO: Descontar ingredientes cuando el chef marca el pedido como listo
+    if (estado === ESTADOS_PEDIDO.ENTREGADO || estado === 'Listos') {
+      try {
+        await procesarDescuentoPedido(pedidoActualizado._id.toString())
+      } catch (inventarioError) {
+        console.error(
+          `[Inventario] Error al procesar descuento para pedido ${pedidoActualizado._id}:`,
+          inventarioError
+        )
+        // El error de inventario NO interrumpe la respuesta al cliente
+      }
     }
 
     res.status(200).json({
