@@ -1,4 +1,17 @@
 // ─── Servicio de Lógica de Negocio de Pedidos ──────────────────────────────
+import Pedido from '../models/Pedido'
+import { ESTADOS_PEDIDO } from '../utils/constants'
+import { procesarDescuentoPedido } from './inventario.service'
+
+// ─── Tipos de retorno ────────────────────────────────────────────────────────
+
+export interface ResultadoActualizarEstado {
+  pedidoActualizado: any
+  /** true cuando el nuevo estado activa la alerta "¡Listo!" hacia los meseros */
+  disparaAlertaListo: boolean
+}
+
+// ─── Clase principal ─────────────────────────────────────────────────────────
 
 export class PedidoService {
   /**
@@ -40,5 +53,52 @@ export class PedidoService {
           observacion: detalle.observacion
         })) || []
     }
+  }
+
+  /**
+   * Lógica de negocio pura para actualizar el estado de un pedido.
+   * No conoce Request/Response ni WebSockets — eso queda en el controlador.
+   *
+   * @param pedidoId  ID del pedido a actualizar
+   * @param nuevoEstado  Nuevo estado (ej. 'EN_PREPARACION', 'ENTREGADO', 'Listos')
+   * @returns El pedido actualizado y un flag que indica si se debe emitir alerta de "listo"
+   * @throws Error si el pedido no existe (el controlador lo convierte en 404)
+   */
+  static async actualizarEstadoService(
+    pedidoId: string,
+    nuevoEstado: string
+  ): Promise<ResultadoActualizarEstado> {
+    // 1. Actualizar estado en BD con populate completo
+    const pedidoActualizado = await Pedido.findByIdAndUpdate(
+      pedidoId,
+      { estado: nuevoEstado },
+      { new: true }
+    )
+      .populate('mesa', 'numero')
+      .populate('detalles.plato', 'nombre precio')
+      .populate('usuario', 'nombre apellido')
+
+    if (!pedidoActualizado) {
+      throw new Error('PEDIDO_NO_ENCONTRADO')
+    }
+
+    // 2. Determinar si el nuevo estado activa la alerta "¡Listo!"
+    const disparaAlertaListo =
+      nuevoEstado === ESTADOS_PEDIDO.ENTREGADO || nuevoEstado === 'Listos'
+
+    // 3. Descontar inventario si el pedido pasa a "listo"
+    if (disparaAlertaListo) {
+      try {
+        await procesarDescuentoPedido(pedidoActualizado._id.toString())
+      } catch (inventarioError) {
+        // El fallo de inventario NO interrumpe el flujo principal del pedido
+        console.error(
+          `[Inventario] Error al procesar descuento para pedido ${pedidoActualizado._id}:`,
+          inventarioError
+        )
+      }
+    }
+
+    return { pedidoActualizado, disparaAlertaListo }
   }
 }

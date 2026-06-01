@@ -1,10 +1,10 @@
-// src/services/inventario.service.ts
 import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
 import Receta from '../models/Receta'
 import Ingrediente, { IIngrediente } from '../models/Ingrediente'
 import MovimientoInventario from '../models/MovimientoInventario'
 import AlertaStock from '../models/AlertaStock'
+import { getIO } from '../socket/socket'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ function calcularEstado(stockActual: number, stockMinimo: number): IIngrediente[
  */
 function debeExcluirIngrediente(observacion: string, nombreIngrediente: string): boolean {
   if (!observacion) return false
-  const regex = new RegExp(`sin\\s+${nombreIngrediente.trim()}`, 'i')
+  const regex = new RegExp(`(?:sin|no\\s+poner|quitar|evitar)\\s+${nombreIngrediente.trim()}`, 'i')
   return regex.test(observacion)
 }
 
@@ -143,7 +143,7 @@ export async function procesarDescuentoPedido(pedidoId: string): Promise<void> {
         const yaAlertado = await existeAlertaHoy(ingrediente._id as mongoose.Types.ObjectId)
 
         if (!yaAlertado) {
-          await AlertaStock.create({
+          const alertaGenerada = await AlertaStock.create({
             ingrediente: ingrediente._id,
             stockActual: nuevoStock,
             stockMinimo: ingrediente.stockMinimo,
@@ -153,6 +153,13 @@ export async function procesarDescuentoPedido(pedidoId: string): Promise<void> {
           console.warn(
             `[Inventario] ⚠️ Alerta generada: "${ingrediente.nombre}" está en estado "${nuevoEstado}" (stock: ${nuevoStock})`
           )
+
+          try {
+            const io = getIO()
+            io.emit('inventario:alerta', alertaGenerada)
+          } catch (socketError) {
+            console.warn('[Inventario] Alerta creada, pero falló la emisión del WebSocket:', socketError)
+          }
         }
       }
     }

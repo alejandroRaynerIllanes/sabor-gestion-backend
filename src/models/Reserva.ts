@@ -35,4 +35,6 @@ const ReservaSchema = new Schema(
   }
 )
 
+ReservaSchema.index({ fecha: 1 })
+
 export default mongoose.model<IReserva>('Reserva', ReservaSchema)
