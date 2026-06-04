@@ -1,11 +1,14 @@
 // src/controllers/pago.controller.ts
 import { Request, Response } from 'express'
+import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
 import { getIO } from '../socket/socket'
 import nodemailer from 'nodemailer'
 import Reserva from '../models/Reserva'
 import Pago from '../models/Pago'
+import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
+import { enviarCorreo } from '../services/email.service'
 // 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -31,137 +34,163 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
 
 // 2. Procesamiento de Pago Final (Conectado a tu Modal)
 export const procesarPagoFinal = async (req: Request, res: Response): Promise<void> => {
+  const { pedidoId } = req.params
+  const { metodoPago, porcentajeDescuento = 0, porcentajePropina = 0 } = req.body
+
+  // --- Validaciones previas (sin sesión, para responder rápido al cliente) ---
+  // Hacemos populate del usuario (Mesero) para saber quién tomó la orden
+  const pedido = await Pedido.findById(pedidoId).populate('usuario', 'nombre apellido')
+
+  if (!pedido) {
+    res.status(404).json({ mensaje: 'Pedido no encontrado' })
+    return
+  }
+
+  if (pedido.estado === 'CERRADO') {
+    res.status(400).json({ mensaje: 'Este pedido ya ha sido pagado y cerrado.' })
+    return
+  }
+
+  // RESTRICCIÓN FLEXIBILIZADA: Evitamos que el cajero se quede bloqueado si el chef olvidó marcar "Listo"
+  // Solo evitamos cobrar pedidos que ya estén Cancelados.
+  if (pedido.estado === 'CANCELADO') {
+    res.status(400).json({ mensaje: 'No se puede cobrar un pedido cancelado.' })
+    return
+  }
+
+  if (!['Efectivo', 'Tarjeta', 'QR'].includes(metodoPago)) {
+    res.status(400).json({ mensaje: 'Método de pago no permitido. Use Efectivo, Tarjeta o QR.' })
+    return
+  }
+
+  // --- Cálculos (sin BD, seguros fuera de la transacción) ---
+  const ped: any = pedido
+  const subtotal = ped.subtotalCierre || pedido.total || 0
+
+  // 🛠️ BUG FIX: Calcular los montos reales si el frontend envió porcentajes en el momento del pago
+  const montoDescuento =
+    porcentajeDescuento > 0 ? subtotal * (porcentajeDescuento / 100) : ped.montoDescuento || 0
+
+  const montoPropina =
+    porcentajePropina > 0 ? subtotal * (porcentajePropina / 100) : ped.montoPropina || 0
+
+  const totalFinal = subtotal - montoDescuento + montoPropina
+
+  // --- TRANSACCIÓN MONGODB: todas las escrituras son atómicas ---
+  const session = await mongoose.startSession()
+  session.startTransaction()
+
+  let nuevoEstado = 'Libre'
+
   try {
-    const { pedidoId } = req.params
-
-    const { metodoPago, porcentajeDescuento = 0, porcentajePropina = 0 } = req.body
-
-    // Hacemos populate del usuario (Mesero) para saber quién tomó la orden
-    const pedido = await Pedido.findById(pedidoId).populate('usuario', 'nombre apellido')
-
-    if (!pedido) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' })
-      return
-    }
-
-    if (pedido.estado === 'CERRADO') {
-      res.status(400).json({ mensaje: 'Este pedido ya ha sido pagado y cerrado.' })
-      return
-    }
-
-    // RESTRICCIÓN FLEXIBILIZADA: Evitamos que el cajero se quede bloqueado si el chef olvidó marcar "Listo"
-    // Solo evitamos cobrar pedidos que ya estén Cancelados.
-    if (pedido.estado === 'CANCELADO') {
-      res.status(400).json({ mensaje: 'No se puede cobrar un pedido cancelado.' })
-      return
-    }
-
-    if (!['Efectivo', 'Tarjeta', 'QR'].includes(metodoPago)) {
-      res.status(400).json({ mensaje: 'Método de pago no permitido. Use Efectivo, Tarjeta o QR.' })
-      return
-    }
-
-    const ped: any = pedido
-    const subtotal = ped.subtotalCierre || pedido.total || 0
-    
-    // 🛠️ BUG FIX: Calcular los montos reales si el frontend envió porcentajes en el momento del pago
-    const montoDescuento = porcentajeDescuento > 0 
-      ? (subtotal * (porcentajeDescuento / 100)) 
-      : (ped.montoDescuento || 0)
-      
-    const montoPropina = porcentajePropina > 0 
-      ? (subtotal * (porcentajePropina / 100)) 
-      : (ped.montoPropina || 0)
-      
-    const totalFinal = subtotal - montoDescuento + montoPropina
-
     pedido.estado = 'CERRADO'
     pedido.total = totalFinal
-
     ped.metodoPago = metodoPago
     ped.montoDescuento = montoDescuento
     ped.montoPropina = montoPropina
     ped.subtotalCierre = subtotal
 
-    await pedido.save()
+    await pedido.save({ session })
+
+    const fechaEnvioCaja = obtenerFechaBolivia()
+    const fechaPago = obtenerFechaBolivia()
 
     // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
     // Separamos la lógica contable y creamos el registro financiero puro
-    const nuevoPago = new Pago({
-      codigoPago: `PAG-${String(pedido._id).slice(-6).toUpperCase()}`,
-      pedido: pedido._id,
-      mesa: pedido.mesa,
-      mesero: (pedido.usuario as any)?._id || pedido.usuario,
-      cajero: (req as any).usuario?.id || ped.cajeroAsignado || null,
-      nombreCliente: ped.clienteNombre || 'Consumidor Final',
-      ci: ped.clienteCI || '',
-      nit: ped.clienteNIT || '',
-      subtotal: subtotal,
-      descuento: montoDescuento,
-      propina: montoPropina,
-      totalFinal: totalFinal,
-      metodoPago: metodoPago,
-      estadoPago: 'Pagado',
-      fechaPago: new Date()
-    })
-    await nuevoPago.save()
+    // Nota: Pago.create con session requiere pasar un array
+    const [nuevoPago] = await Pago.create(
+      [
+        {
+          codigoPago: `PAG-${String(pedido._id).slice(-6).toUpperCase()}`,
+          pedido: pedido._id,
+          mesa: pedido.mesa,
+          mesero: (pedido.usuario as any)?._id || pedido.usuario,
+          cajero: (req as any).usuario?.id || ped.cajeroAsignado || null,
+          nombreCliente: ped.clienteNombre || 'Consumidor Final',
+          ci: ped.clienteCI || '',
+          nit: ped.clienteNIT || '',
+          subtotal: subtotal,
+          descuento: montoDescuento,
+          propina: montoPropina,
+          totalFinal: totalFinal,
+          metodoPago: metodoPago,
+          estadoPago: 'Pagado',
+          fechaEnvioCajaBolivia: formatearFechaBolivia(fechaEnvioCaja),
+          fechaEnvioCaja,
+          fechaPagoBolivia: formatearFechaBolivia(fechaPago),
+          fechaPago
+        }
+      ],
+      { session }
+    )
 
-    let nuevoEstado = 'Libre'
     if (pedido.mesa) {
       const inicioHoy = new Date()
       inicioHoy.setHours(0, 0, 0, 0)
       const reservasPendientes = await Reserva.countDocuments({
         mesa: pedido.mesa,
         fecha: { $gte: inicioHoy }
-      })
+      }).session(session)
       nuevoEstado = reservasPendientes > 0 ? 'Reservada' : 'Libre'
-      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: nuevoEstado })
+      await Mesa.findByIdAndUpdate(pedido.mesa, { estado: nuevoEstado }, { session })
     }
 
-    try {
-      const io = getIO()
-      io.emit('cocina:actualizar_tablero', pedido)
-
-      if (pedido.mesa) {
-        const mesaLiberada = await Mesa.findById(pedido.mesa)
-        io.emit('mesas:updated', {
-          id: pedido.mesa.toString(),
-          status: nuevoEstado === 'Libre' ? 'Disponible' : 'Reservada',
-          name: mesaLiberada?.numero || 'Mesa'
-        })
-        io.emit('mesas:pago_completado', {
-          mesaId: pedido.mesa.toString(),
-          mesaNombre: mesaLiberada?.numero || 'Mesa',
-          pedidoId: pedido._id.toString(),
-          mensaje: 'Pago procesado exitosamente'
-        })
-      }
-    } catch (socketError) {
-      console.warn('Pago guardado, pero falló la emisión del WebSocket:', socketError)
-    }
-
-    // Extraemos el nombre real del mesero
-    const meseroNombre = pedido.usuario
-      ? `${(pedido.usuario as any).nombre || ''} ${(pedido.usuario as any).apellido || ''}`.trim()
-      : 'Sin mesero'
-
-    res.status(200).json({
-      mensaje: 'Pago procesado exitosamente',
-      comprobante: {
-        pedidoId: pedido._id,
-        meseroNombre: meseroNombre, // <-- AHORA SÍ VIAJA EL NOMBRE DEL MESERO AL FRONTEND
-        subtotal: subtotal,
-        descuentoAplicado: montoDescuento,
-        propinaAplicada: montoPropina,
-        totalPagado: totalFinal,
-        metodoPago: ped.metodoPago,
-        fecha: new Date()
-      }
-    })
+    await session.commitTransaction()
   } catch (error) {
+    await session.abortTransaction()
     const err = error as Error
+    console.error('Error en la transacción de pago:', err)
     res.status(500).json({ mensaje: 'Error al procesar el pago', error: err.message })
+    return
+  } finally {
+    session.endSession()
   }
+  // --- FIN TRANSACCIÓN ---
+
+  // Eventos WebSocket (fuera de la transacción — no son operaciones de BD críticas)
+  try {
+    const io = getIO()
+    io.emit('cocina:actualizar_tablero', pedido)
+
+    if (pedido.mesa) {
+      const mesaLiberada = await Mesa.findById(pedido.mesa)
+      io.emit('mesas:updated', {
+        id: pedido.mesa.toString(),
+        status: nuevoEstado === 'Libre' ? 'Disponible' : 'Reservada',
+        name: mesaLiberada?.numero || 'Mesa'
+      })
+      io.emit('mesas:pago_completado', {
+        mesaId: pedido.mesa.toString(),
+        mesaNombre: mesaLiberada?.numero || 'Mesa',
+        pedidoId: pedido._id.toString(),
+        mensaje: 'Pago procesado exitosamente'
+      })
+    }
+  } catch (socketError) {
+    console.warn('Pago guardado, pero falló la emisión del WebSocket:', socketError)
+  }
+
+  // Extraemos el nombre real del mesero
+  const meseroNombre = pedido.usuario
+    ? `${(ped.usuario as any).nombre || ''} ${(ped.usuario as any).apellido || ''}`.trim()
+    : 'Sin mesero'
+
+  const fechaComprobante = obtenerFechaBolivia()
+
+  res.status(200).json({
+    mensaje: 'Pago procesado exitosamente',
+    comprobante: {
+      pedidoId: pedido._id,
+      meseroNombre: meseroNombre, // <-- AHORA SÍ VIAJA EL NOMBRE DEL MESERO AL FRONTEND
+      subtotal: subtotal,
+      descuentoAplicado: montoDescuento,
+      propinaAplicada: montoPropina,
+      totalPagado: totalFinal,
+      metodoPago: ped.metodoPago,
+      fechaBolivia: formatearFechaBolivia(fechaComprobante),
+      fecha: fechaComprobante
+    }
+  })
 }
 
 // 3. NUEVO: Simulador de Pago desde Celular (QR Dinámico)
@@ -175,7 +204,7 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
       io.emit('caja:pago_confirmado', {
         pedidoId,
         mensaje: 'Transferencia QR recibida',
-        fecha: new Date()
+        fecha: obtenerFechaBolivia()
       })
     } catch (socketError) {
       console.warn('Falló la emisión del WebSocket de simulación:', socketError)
@@ -248,26 +277,8 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
       `
     })
 
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true, // true para port 465
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      tls: {
-        // No fallar en certificados inválidos en servidores de Render
-        rejectUnauthorized: false
-      }
-    })
-
     // 2. Diseño del Ticket estilo "Impresora"
-    const mailOptions = {
-      from: `"Sabor & Gestión" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: `Comprobante de Pago - ${codigo}`,
-      html: `
+    const htmlDelRecibo = `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 420px; margin: auto; padding: 30px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff; color: #374151; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
           
           <div style="text-align: center; margin-bottom: 20px;">
@@ -313,13 +324,12 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
 
         </div>
       `
-    }
 
-    await transporter.sendMail(mailOptions)
+    await enviarCorreo(email, 'Comprobante de Pago - ' + codigo, htmlDelRecibo)
 
     res.status(200).json({ mensaje: 'Recibo enviado por correo exitosamente' })
   } catch (error) {
-    console.error('Error al enviar correo:', error)
+    console.error('Error al enviar recibo:', error)
     res.status(500).json({ mensaje: 'Error al enviar el correo' })
   }
 }

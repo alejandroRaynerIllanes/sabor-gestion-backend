@@ -4,6 +4,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 export interface IReserva extends Document {
   codigo: string
   pedidoId: string
+  fechaBolivia?: string
   fecha: Date
   hora: string
   clienteNombre: string
@@ -19,6 +20,7 @@ const ReservaSchema = new Schema(
   {
     codigo: { type: String, unique: true, required: true },
     pedidoId: { type: String, required: true, unique: true },
+    fechaBolivia: { type: String, required: false },
     fecha: { type: Date, required: true },
     hora: { type: String, required: true },
     clienteNombre: { type: String, required: true, trim: true },
@@ -32,5 +34,7 @@ const ReservaSchema = new Schema(
     versionKey: false
   }
 )
+
+ReservaSchema.index({ fecha: 1 })
 
 export default mongoose.model<IReserva>('Reserva', ReservaSchema)

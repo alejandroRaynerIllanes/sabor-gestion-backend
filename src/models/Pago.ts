@@ -1,5 +1,6 @@
 // src/models/Pago.ts
 import mongoose, { Schema, Document } from 'mongoose'
+import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 
 export interface IPago extends Document {
   codigoPago: string
@@ -16,7 +17,9 @@ export interface IPago extends Document {
   totalFinal: number
   metodoPago?: string // Opcional al crear, obligatorio al pagar
   estadoPago: string
+  fechaEnvioCajaBolivia?: string
   fechaEnvioCaja: Date
+  fechaPagoBolivia?: string
   fechaPago?: Date
   observaciones?: string
   createdAt: Date
@@ -61,9 +64,13 @@ const PagoSchema = new Schema(
     },
 
     // 🕒 Fechas
-    fechaEnvioCaja: { type: Date, default: Date.now },
+    fechaEnvioCajaBolivia: {
+      type: String,
+      default: () => formatearFechaBolivia(obtenerFechaBolivia())
+    },
+    fechaEnvioCaja: { type: Date, default: obtenerFechaBolivia },
+    fechaPagoBolivia: { type: String, required: false },
     fechaPago: { type: Date, default: null },
-
     // 📌 Información adicional
     observaciones: { type: String, default: '' }
   },
