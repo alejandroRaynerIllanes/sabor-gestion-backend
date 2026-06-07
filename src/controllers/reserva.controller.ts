@@ -1,4 +1,4 @@
-//src/controllers/reserva.controller.ts
+// src/controllers/reserva.controller.ts
 import { Response } from 'express'
 import mongoose from 'mongoose'
 import Reserva from '../models/Reserva'
@@ -80,13 +80,13 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
 
-    // RESOLUCIÓN RIESGO LÓGICO: Usamos el contador atómico para asegurar que el código RES-XXXX sea único (Evitamos race conditions)
+    // RESOLUCIÓN RIESGO LÓGICO: Usamos el contador atómico para asegurar que el código RES-XXXX sea único
     const codigoGenerado = `RES-${String(contadorDoc.secuencia).padStart(4, '0')}`
 
-    // RESOLUCIÓN: Mantenemos ambos identificadores
+    // RESOLUCIÓN: Mantenemos ambos identificadores para compatibilidad con el equipo
     const nuevaReserva = new Reserva({
       codigo: codigoGenerado,
-      pedidoId: elPedidoIdFormateado,
+      pedidoId: elPedidoIdFormateado, // <--- 🛠️ LÍNEA RESTAURADA PARA EVITAR EL ERROR DE MONGODB
       fechaBolivia: formatearFechaReservaBolivia(fechaReserva, horaReserva),
       fecha: new Date(fechaReserva),
       hora: horaReserva,
@@ -99,7 +99,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
 
     await nuevaReserva.save()
 
-   // 1. Cambio de estado instantáneo: Pasamos a 'Reservada' si actualmente está 'Libre'
+    // 1. Cambio de estado instantáneo: Pasamos a 'Reservada' si actualmente está 'Libre'
     let cambiarAReservada = false;
     if (mesaEncontrada.estado === 'Libre') {
       await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' });
@@ -111,10 +111,11 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       .populate('mesa', 'numero ubicacion capacidad estado')
       .populate('usuario', 'nombre apellido email rol')
 
-    // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida
+    // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida JSON
     const reservaFormateada = {
       id: reservaGuardada?._id,
       codigo: reservaGuardada?.codigo,
+      numeroPedido: reservaGuardada?.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
       dateBolivia: reservaGuardada?.fechaBolivia,
@@ -156,6 +157,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
     const reservasFormateadas = reservas.map((reserva) => ({
       id: reserva._id,
       codigo: reserva.codigo,
+      numeroPedido: reserva.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
       dateBolivia: reserva.fechaBolivia,
