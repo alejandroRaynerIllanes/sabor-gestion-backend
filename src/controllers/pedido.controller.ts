@@ -9,6 +9,7 @@ import Reserva from '../models/Reserva'
 import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
 import { PedidoService } from '../services/pedido.service'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
+// procesarDescuentoPedido es invocado internamente por PedidoService.actualizarEstadoService
 
 const agregarFechaBoliviaPedido = (pedido: any) => {
   const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
@@ -86,11 +87,11 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
 
     //  Endpoint para consultar los Reportes de Cierre reales de la BD
     if (reportesCierre === 'true') {
-      const limite = obtenerFechaBolivia(); 
-      limite.setHours(limite.getHours() - 48); // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
-      const cierres = await CierreCaja.find({ 
-        fechaCierre: { $gte: limite } 
-      }).sort({ fechaCierre: -1 });
+      const limite = obtenerFechaBolivia()
+      limite.setHours(limite.getHours() - 48) // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
+      const cierres = await CierreCaja.find({
+        fechaCierre: { $gte: limite }
+      }).sort({ fechaCierre: -1 })
       const cierresFormateados = cierres.map((cierre: any) => {
         const cierrePlano = typeof cierre.toObject === 'function' ? cierre.toObject() : cierre
         const { fechaCierreBolivia, fechaCierre, ...restoCierre } = cierrePlano
@@ -103,8 +104,8 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
         }
       })
 
-      res.status(200).json(cierresFormateados);
-      return;
+      res.status(200).json(cierresFormateados)
+      return
     }
 
     if (hoy === 'true') {
@@ -123,7 +124,14 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       filtro.mesa = mesa
     }
     if (activo === 'true') {
-      filtro.estado = { $in: [ESTADOS_PEDIDO.ABIERTO, ESTADOS_PEDIDO.EN_PREPARACION, ESTADOS_PEDIDO.ENTREGADO, 'SERVIDO'] }
+      filtro.estado = {
+        $in: [
+          ESTADOS_PEDIDO.ABIERTO,
+          ESTADOS_PEDIDO.EN_PREPARACION,
+          ESTADOS_PEDIDO.ENTREGADO,
+          'SERVIDO'
+        ]
+      }
     }
     if (cajero) {
       filtro.cajeroAsignado = cajero
@@ -137,7 +145,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       .populate('usuario', 'nombre apellido')
       .populate('cajeroAsignado', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
-      .sort({ createdAt: -1 }) // Los más recientes primero
+      .sort({ createdAt: -1 })
 
     res.status(200).json(pedidos.map((pedido) => agregarFechaBoliviaPedido(pedido)))
   } catch (error) {
@@ -199,35 +207,26 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
 export const actualizarEstadoPedido = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params
-
-    // El frontend enviará: { "estado": "Cocinando" } o { "estado": "Listos" }
     const { estado } = req.body
 
-    // 1. Actualizamos el estado en la base de datos
-    const pedidoActualizado = await Pedido.findByIdAndUpdate(id, { estado }, { new: true })
-      .populate('mesa', 'numero')
-      .populate('detalles.plato', 'nombre precio')
-      .populate('usuario', 'nombre apellido')
+    // 1. Delegar toda la lógica de negocio al servicio
+    //    (busca el pedido, actualiza estado, descuenta inventario si aplica)
+    const { pedidoActualizado, disparaAlertaListo } =
+      await PedidoService.actualizarEstadoService(String(id), String(estado))
 
-    if (!pedidoActualizado) {
-      res.status(404).json({ mensaje: 'Pedido no encontrado' })
-      return
-    }
-
-    // 2. WEBSOCKETS: La magia de la sincronización
+    // 2. WEBSOCKETS — responsabilidad del controlador (el servicio no conoce getIO)
     try {
       const io = getIO()
 
-      // A) Avisar a las pantallas de cocina para que muevan la tarjeta de columna
+      // A) Mover la tarjeta en el tablero de cocina
       io.emit('cocina:actualizar_tablero', pedidoActualizado)
 
-      // B) EL EVENTO CLAVE: Si el chef presionó "Terminado/Listos"
-      if (estado === ESTADOS_PEDIDO.ENTREGADO || estado === 'Listos') {
+      // B) Alerta "¡Listo!" hacia los meseros cuando el chef termina el pedido
+      if (disparaAlertaListo) {
         console.log(
           ' [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:',
           pedidoActualizado._id.toString()
         )
-        // Le gritamos al frontend del Mesero para que encienda el badge verde de "¡LISTO!"
         io.emit('mesas:alerta_listo', {
           pedidoId: pedidoActualizado._id.toString(),
           mesaId: pedidoActualizado.mesa
@@ -245,15 +244,19 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
       console.warn('Estado actualizado, pero falló la emisión del socket')
     }
 
+    // 3. Respuesta HTTP
     res.status(200).json({
       mensaje: `Pedido movido a ${estado}`,
       pedido: agregarFechaBoliviaPedido(pedidoActualizado)
     })
   } catch (error) {
     const err = error as Error
-    res
-      .status(500)
-      .json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message })
+    // El servicio lanza 'PEDIDO_NO_ENCONTRADO' cuando el ID no existe
+    if (err.message === 'PEDIDO_NO_ENCONTRADO') {
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
+    }
+    res.status(500).json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message })
   }
 }
 
@@ -279,7 +282,11 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (detalles !== undefined) updates.detalles = detalles
 
     // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
-    if (pedidoAnterior && pedidoAnterior.estado === ESTADOS_PEDIDO.ENTREGADO && detalles !== undefined) {
+    if (
+      pedidoAnterior &&
+      pedidoAnterior.estado === ESTADOS_PEDIDO.ENTREGADO &&
+      detalles !== undefined
+    ) {
       updates.estado = ESTADOS_PEDIDO.ABIERTO
     }
 
@@ -314,7 +321,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
         typeof pedidoActualizado.mesa === 'object'
           ? (pedidoActualizado.mesa as any)._id
           : pedidoActualizado.mesa
-      
+
       if (updates.estado === ESTADOS_PEDIDO.ABIERTO) {
         await Mesa.findByIdAndUpdate(mesaId, { estado: ESTADOS_MESA.OCUPADA })
         try {

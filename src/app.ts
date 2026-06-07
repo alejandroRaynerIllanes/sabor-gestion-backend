@@ -16,8 +16,13 @@ import pedidoRoutes from './routes/pedido.routes'
 import pagoRoutes from './routes/pago.routes'
 import dashboardRoutes from './routes/dashboard.routes'
 import uploadRouters from './routes/upload.routes' // <-- Sin el .js
+import inventarioRoutes from './routes/inventario.routes'
+
+import swaggerUi from 'swagger-ui-express'
+import { swaggerSpec, swaggerUiOptions } from './configs/swagger'
 
 const app: Application = express()
+
 
 // Middlewares globales
 app.use(morgan('dev'))
@@ -50,8 +55,11 @@ app.use('/api/ubicaciones', ubicacionRoutes)
 app.use('/api/platos', platoRoutes)
 app.use('/api/reservas', reservaRoutes)
 app.use('/api/pedidos', pedidoRoutes)
-app.use('/api/pagos', pagoRoutes) // <-- Corregido a plural
+app.use('/api/pagos', pagoRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/inventario', inventarioRoutes)
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions as any))
 
 // Health check / Ruta de prueba
 app.get('/api/health', (req: Request, res: Response) => {
