@@ -37,5 +37,7 @@ const CierreCajaSchema: Schema = new Schema(
   }
 )
 
+CierreCajaSchema.index({ fechaCierre: -1 })
+
 export default mongoose.models.CierreCaja ||
   mongoose.model<ICierreCaja>('CierreCaja', CierreCajaSchema)

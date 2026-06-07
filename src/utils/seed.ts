@@ -10,8 +10,8 @@ dotenv.config()
 
 const seed = async () => {
   try {
-    const mongoURI =
-      process.env.DB_URI || 'mongodb+srv://usuario:contraseña@cluster0.mongodb.net/dbname'
+    const mongoURI = process.env.MONGO_URI
+    if (!mongoURI) throw new Error('La variable de entorno MONGO_URI no está definida.')
 
     await mongoose.connect(mongoURI)
     console.log('🟢 Conectado a la Base de Datos para seeding...')
@@ -91,7 +91,7 @@ const seed = async () => {
       mesasData.push({
         numero: i,
         capacidad: Math.ceil(i / 2) * 2,
-        estado: 'Disponible'
+        estado: 'Libre'
       })
     }
     await Mesa.insertMany(mesasData)

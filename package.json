@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "seed": "ts-node src/utils/seed.ts"
+    "seed": "ts-node src/utils/seed.ts",
+    "seed:inventario": "tsx src/utils/seedInventario.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -18,7 +19,6 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mongodb": "^7.1.1",
     "mongoose": "^9.3.1",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
@@ -35,7 +35,6 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^20.0.0",
     "@types/nodemailer": "^8.0.0",
-    "@types/socket.io": "^3.0.1",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@typescript-eslint/parser": "^8.59.2",

@@ -85,4 +85,8 @@ const PedidoSchema = new Schema(
   }
 )
 
+PedidoSchema.index({ estado: 1 })
+PedidoSchema.index({ createdAt: -1 })
+PedidoSchema.index({ mesa: 1 })
+
 export default mongoose.model<IPedido>('Pedido', PedidoSchema)
