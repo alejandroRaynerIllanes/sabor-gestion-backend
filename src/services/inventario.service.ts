@@ -1,3 +1,4 @@
+//src/services/inventario.service.ts
 import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
 import Receta from '../models/Receta'

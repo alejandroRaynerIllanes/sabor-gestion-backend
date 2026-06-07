@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose'
 
 export interface IIngrediente extends Document {
   nombre: string
-  unidadMedida: 'kg' | 'g' | 'l' | 'unidades'
+  unidadMedida: string // <-- AHORA ACEPTA CUALQUIER TEXTO
   stockActual: number
   stockMinimo: number
   estado: 'Disponible' | 'Bajo' | 'Agotado'
@@ -16,11 +16,10 @@ const IngredienteSchema = new Schema(
     unidadMedida: {
       type: String,
       required: true,
-      enum: ['kg', 'g', 'l', 'unidades']
+      trim: true // <-- LE QUITAMOS EL ENUM Y LE PUSIMOS TRIM PARA LIMPIAR ESPACIOS
     },
     stockActual: { type: Number, default: 0, min: 0 },
     stockMinimo: { type: Number, default: 0, min: 0 },
-    // El estado se calcula y persiste desde el controlador al guardar/actualizar
     estado: {
       type: String,
       enum: ['Disponible', 'Bajo', 'Agotado'],
