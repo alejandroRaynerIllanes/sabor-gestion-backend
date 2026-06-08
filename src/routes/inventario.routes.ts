@@ -11,7 +11,6 @@ import {
   eliminarReceta,
   obtenerAlertas
 } from '../controllers/inventario.controller'
-
 // Middlewares de seguridad
 import { verificarToken } from '../middlewares/auth.middleware'
 import { soloAdmins } from '../middlewares/rol.middleware'

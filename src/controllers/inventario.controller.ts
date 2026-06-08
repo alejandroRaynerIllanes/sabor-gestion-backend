@@ -6,8 +6,9 @@ import MovimientoInventario from '../models/MovimientoInventario'
 import Receta from '../models/Receta'
 import Plato from '../models/Plato'
 import AlertaStock from '../models/AlertaStock'
+import { getIO } from '../socket/socket' // <-- Importación del WebSocket
 
-// ─── GESTIÓN DE ESTADO Y ENTRADAS (Originales del equipo) ────────────────────
+// ─── GESTIÓN DE ESTADO Y ENTRADAS ────────────────────────────────────────────
 
 export const obtenerEstadoInventario = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -85,6 +86,13 @@ export const registrarEntradaStock = async (req: Request, res: Response): Promis
     await session.commitTransaction()
     session.endSession()
 
+    // Emitir evento de actualización por WebSockets
+    try {
+      getIO().emit('inventario:actualizado')
+    } catch (e) {
+      console.warn('Socket no inicializado', e)
+    }
+
     res.status(200).json({
       mensaje: 'Entrada de stock registrada correctamente.',
       ingrediente: {
@@ -107,7 +115,7 @@ export const registrarEntradaStock = async (req: Request, res: Response): Promis
   }
 }
 
-// ─── GESTIÓN DE INGREDIENTES (Nuevos endpoints CRUD) ─────────────────────────
+// ─── GESTIÓN DE INGREDIENTES (CRUD) ──────────────────────────────────────────
 
 export const crearIngrediente = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -131,6 +139,14 @@ export const crearIngrediente = async (req: Request, res: Response): Promise<voi
     })
 
     await nuevoIngrediente.save()
+
+    // Emitir evento de actualización
+    try {
+      getIO().emit('inventario:actualizado')
+    } catch (e) {
+      console.warn('Socket no inicializado', e)
+    }
+
     res.status(201).json({ mensaje: 'Ingrediente creado con éxito', ingrediente: nuevoIngrediente })
   } catch (error) {
     const err = error as Error
@@ -163,6 +179,14 @@ export const actualizarIngrediente = async (req: Request, res: Response): Promis
     }
 
     await ingrediente.save()
+
+    // Emitir evento de actualización
+    try {
+      getIO().emit('inventario:actualizado')
+    } catch (e) {
+      console.warn('Socket no inicializado', e)
+    }
+
     res.status(200).json({ mensaje: 'Ingrediente actualizado', ingrediente })
   } catch (error) {
     const err = error as Error
@@ -179,6 +203,14 @@ export const eliminarIngrediente = async (req: Request, res: Response): Promise<
       res.status(404).json({ mensaje: 'Ingrediente no encontrado' })
       return
     }
+
+    // Emitir evento de actualización
+    try {
+      getIO().emit('inventario:actualizado')
+    } catch (e) {
+      console.warn('Socket no inicializado', e)
+    }
+
     res.status(200).json({ mensaje: 'Ingrediente eliminado exitosamente' })
   } catch (error) {
     const err = error as Error
@@ -221,9 +253,15 @@ export const guardarReceta = async (req: Request, res: Response): Promise<void> 
     if (receta) {
       receta.ingredientes = ingredientes
       await receta.save()
+
+      try { getIO().emit('inventario:actualizado') } catch (e) {}
+
       res.status(200).json({ mensaje: 'Receta actualizada exitosamente', receta })
     } else {
       receta = await Receta.create({ plato, ingredientes })
+
+      try { getIO().emit('inventario:actualizado') } catch (e) {}
+
       res.status(201).json({ mensaje: 'Receta creada exitosamente', receta })
     }
 
@@ -242,6 +280,13 @@ export const eliminarReceta = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ mensaje: 'Receta no encontrada' })
       return
     }
+
+    try {
+      getIO().emit('inventario:actualizado')
+    } catch (e) {
+      console.warn('Socket no inicializado', e)
+    }
+
     res.status(200).json({ mensaje: 'Receta eliminada exitosamente' })
   } catch (error) {
     const err = error as Error
