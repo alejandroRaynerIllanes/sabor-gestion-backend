@@ -68,11 +68,6 @@ app.get('/api/health', (req: Request, res: Response) => {
     message: 'API de Sabor & Gestión funcionando correctamente 🚀'
   })
 })
-// Manejador para rutas no encontradas (404 Catch-All)
-app.use('*', (req: Request, res: Response) => {
-  res.status(404).json({ 
-    mensaje: `La ruta ${req.originalUrl} no existe en este servidor.` 
-  })
-})
+
 
 export default app
