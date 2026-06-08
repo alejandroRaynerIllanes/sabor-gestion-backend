@@ -85,7 +85,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     const { hoy, fecha, mesa, activo, cajero, mesero, reportesCierre } = req.query
     const filtro: any = {}
 
-    // 🔥 Endpoint para consultar los Reportes de Cierre reales de la BD
+    //  Endpoint para consultar los Reportes de Cierre reales de la BD
     if (reportesCierre === 'true') {
       const limite = obtenerFechaBolivia()
       limite.setHours(limite.getHours() - 48) // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
@@ -224,7 +224,7 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
       // B) Alerta "¡Listo!" hacia los meseros cuando el chef termina el pedido
       if (disparaAlertaListo) {
         console.log(
-          '🔔 [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:',
+          ' [WEBSOCKET] Emitiendo alerta de listo a meseros para pedido:',
           pedidoActualizado._id.toString()
         )
         io.emit('mesas:alerta_listo', {

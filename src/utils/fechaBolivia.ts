@@ -1,3 +1,4 @@
+//src/utils/fechaBolivia.ts
 export const obtenerFechaBolivia = (): Date => {
   const ahora = new Date()
 

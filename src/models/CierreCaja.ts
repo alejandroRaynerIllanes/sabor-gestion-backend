@@ -1,4 +1,5 @@
-import mongoose, { Schema, Document } from 'mongoose'
+//src/models/CierreCaja.ts
+import mongoose, { Schema, Document } from 'mongoose';
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 
 export interface ICierreCaja extends Document {
