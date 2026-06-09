@@ -1,14 +1,16 @@
-// src/controllers/pedido.controller.ts
 import { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
+import Plato from '../models/Plato' // <-- AÑADIDO para el checkout
 import { getIO } from '../socket/socket'
 import CierreCaja from '../models/CierreCaja'
 import Reserva from '../models/Reserva'
 import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
 import { PedidoService } from '../services/pedido.service'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
+import { CustomRequest } from '../middlewares/auth.middleware' // <-- AÑADIDO para leer req.usuario
+
 // procesarDescuentoPedido es invocado internamente por PedidoService.actualizarEstadoService
 
 const agregarFechaBoliviaPedido = (pedido: any) => {
@@ -202,8 +204,6 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
   }
 }
 
-// Añadir al final de src/controllers/pedido.controller.ts
-
 export const actualizarEstadoPedido = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params
@@ -339,7 +339,6 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       getIO().emit('cocina:actualizar_tablero', pedidoActualizado)
     } catch (e) {}
 
-    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
     // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
     if (cajeroAsignado) {
       const payloadCaja = PedidoService.formatearPayloadCaja(pedidoActualizado)
@@ -484,3 +483,61 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
     })
   }
 }
+
+// <-- NUEVA FUNCIÓN: Checkout para Pedidos Delivery -->
+export const checkoutPedido = async (req: CustomRequest, res: Response): Promise<void> => {
+  try {
+    const { items, metodoPago, coordenadasEntrega, total } = req.body; 
+
+    // 1. Verificación síncrona de stock
+    for (const item of items) {
+      const plato = await Plato.findById(item.platoId || item.plato); // Compatibilidad de nombres
+      if (!plato || plato.stock < item.cantidad) {
+         res.status(400).json({ 
+          success: false, 
+          mensaje: `Stock insuficiente para el plato: ${plato?.nombre || 'Desconocido'}` 
+        });
+        return;
+      }
+    }
+
+    // 2. Restar stock (Operación atómica recomendada)
+    for (const item of items) {
+      await Plato.findByIdAndUpdate(item.platoId || item.plato, { $inc: { stock: -item.cantidad } });
+    }
+
+    // 3. Generar documento del pedido cumpliendo las reglas del Schema IPedido
+    const pedidoId = new mongoose.Types.ObjectId();
+    const fechaHora = obtenerFechaBolivia();
+
+    // Mapeamos los items al formato exacto que pide IDetallePedido
+    const detallesFormateados = items.map((item: any) => ({
+      plato: item.platoId || item.plato,
+      cantidad: item.cantidad,
+      precioUnitario: item.precioUnitario || 0,
+      subtotal: (item.precioUnitario || 0) * item.cantidad,
+      observacion: item.observacion || ''
+    }));
+
+    const nuevoPedido = new Pedido({
+      _id: pedidoId,
+      codigo: `PED-${String(pedidoId).slice(-4).toUpperCase()}`, // Código obligatorio
+      usuario: req.usuario?.id, // ID del cliente
+      metodoEntrega: 'delivery',
+      detalles: detallesFormateados,
+      total: total || detallesFormateados.reduce((acc: number, cur: any) => acc + cur.subtotal, 0),
+      metodoPago: metodoPago || 'Efectivo',
+      estado: 'Pendiente_de_Aceptacion', // Estado inicial de delivery
+      coordenadasEntrega,
+      fechaHoraBolivia: formatearFechaBolivia(fechaHora),
+      fechaHora
+    });
+
+    await nuevoPedido.save();
+
+    res.status(201).json({ success: true, pedido: agregarFechaBoliviaPedido(nuevoPedido) });
+  } catch (error) {
+    const err = error as Error;
+    res.status(500).json({ success: false, mensaje: 'Error procesando checkout', error: err.message });
+  }
+};

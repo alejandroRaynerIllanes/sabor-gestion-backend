@@ -20,6 +20,7 @@ import inventarioRoutes from './routes/inventario.routes'
 
 import swaggerUi from 'swagger-ui-express'
 import { swaggerSpec, swaggerUiOptions } from './configs/swagger'
+import deliveryRoutes from './routes/delivery.routes'
 
 const app: Application = express()
 
@@ -61,6 +62,7 @@ app.use('/api/inventario', inventarioRoutes)
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions as any))
 
+app.use('/api/delivery', deliveryRoutes);
 // Health check / Ruta de prueba
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({

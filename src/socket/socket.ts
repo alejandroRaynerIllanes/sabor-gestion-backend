@@ -1,9 +1,13 @@
-//src/socket/socket.ts
-import { Server as SocketIOServer } from 'socket.io'
+// src/socket/socket.ts
+import { Server as SocketIOServer, Socket } from 'socket.io'
 import { Server as HTTPServer } from 'http'
 import jwt from 'jsonwebtoken'
 
 let io: SocketIOServer
+
+// Diccionario en memoria para Monitor de Señal Muerta
+// Mapea orderId -> timestamp del último ping del repartidor
+export const activeDeliveries = new Map<string, number>();
 
 export const initSocket = (httpServer: HTTPServer) => {
   io = new SocketIOServer(httpServer, {
@@ -46,11 +50,35 @@ export const initSocket = (httpServer: HTTPServer) => {
     }
   })
 
-  io.on('connection', (socket) => {
-    console.log(`⚡ Usuario conectado: ${socket.id}`)
+  io.on('connection', (socket: Socket) => {
+    const rolUsuario = (socket as any).data?.usuario?.rol;
+    console.log(`⚡ Usuario conectado: ${socket.id} (Rol: ${rolUsuario || 'Desconocido'})`)
+
+    // <-- LÓGICA DELIVERY: Cliente se suscribe a la sala privada de su pedido -->
+    socket.on('join_order_room', (orderId: string) => {
+      socket.join(orderId)
+      console.log(`📍 Cliente suscrito al track del pedido: ${orderId}`)
+    })
+
+    // <-- LÓGICA DELIVERY: Repartidor actualiza su ubicación en tiempo real -->
+    socket.on('location_update', (data: { orderId: string, lat: number, lng: number, batch?: any[] }) => {
+      const { orderId, lat, lng, batch } = data
+
+      // 1. Actualizar timestamp para el monitor de señal muerta
+      activeDeliveries.set(orderId, Date.now())
+
+      // 2. Transmitir las coordenadas a la sala exclusiva de ese pedido
+      if (batch && batch.length > 0) {
+        // Modo reconexión (offline recovery): Enviar el arreglo masivo acumulado
+        io.to(orderId).emit('delivery_batch_update', batch)
+      } else {
+        // Flujo normal: Enviar coordenadas actuales
+        io.to(orderId).emit('delivery_update', { lat, lng })
+      }
+    })
 
     socket.on('disconnect', () => {
-      console.log('🔥 Usuario desconectado')
+      console.log(`🔥 Usuario desconectado: ${socket.id}`)
     })
   })
 
