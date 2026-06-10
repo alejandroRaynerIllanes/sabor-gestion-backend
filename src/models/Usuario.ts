@@ -1,6 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
-// Interfaz para el subdocumento de dirección
 export interface IDireccionDelivery {
   etiqueta: string;
   lat: number;
@@ -18,15 +17,15 @@ export interface IUsuario extends Document {
   verificado: boolean
   ubicacion?: string
   isAvailable?: boolean 
-  direccionesDelivery: IDireccionDelivery[] // <-- Arreglo embebido
+  direccionesDelivery: IDireccionDelivery[]
+  ultimaUbicacion?: { lat: number; lng: number; updatedAt: Date } // <-- AÑADIDO: Memoria GPS de la moto
 }
 
-// Subesquema para las coordenadas del cliente
 const DireccionDeliverySchema = new Schema<IDireccionDelivery>({
   etiqueta: { type: String, default: 'Mi Casa', trim: true },
   lat: { type: Number, required: true },
   lng: { type: Number, required: true }
-}, { _id: true }) // Mantenemos el _id interno para poder identificar o borrar una dirección específica fácilmente
+}, { _id: true })
 
 const UsuarioSchema = new Schema(
   {
@@ -44,7 +43,13 @@ const UsuarioSchema = new Schema(
     estado: { type: Boolean, default: true }, 
     verificado: { type: Boolean, default: true },
     isAvailable: { type: Boolean, default: false },
-    direccionesDelivery: [DireccionDeliverySchema] // <-- Inyección del subesquema
+    direccionesDelivery: [DireccionDeliverySchema],
+    // <-- AÑADIDO: Campo para guardar dónde está el repartidor parado
+    ultimaUbicacion: { 
+      lat: { type: Number },
+      lng: { type: Number },
+      updatedAt: { type: Date }
+    }
   },
   {
     timestamps: true,

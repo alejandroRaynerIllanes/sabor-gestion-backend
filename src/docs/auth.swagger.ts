@@ -19,10 +19,27 @@
  *             properties:
  *               email:
  *                 type: string
- *                 example: "gus@gmail.com"
  *               password:
  *                 type: string
- *                 example: "gus1234"
+ *           examples:
+ *             administrador:
+ *               summary: Credenciales Administrador
+ *               value:
+ *                 email: "gus@gmail.com"
+ *                 password: "gus1234"
+ *
+ *             repartidor:
+ *               summary: Credenciales Repartidor
+ *               value:
+ *                 email: "repartidor@quirquinita.com"
+ *                 password: "password123"
+ *
+ *             cliente:
+ *               summary: Credenciales Cliente
+ *               value:
+ *                 email: "cliente@quirquinita.com"
+ *                 password: "password123"
+ *
  *     responses:
  *       200:
  *         description: El sistema validó las credenciales y emitió el token.

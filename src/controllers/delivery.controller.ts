@@ -1,3 +1,4 @@
+// src/controllers/delivery.controller.ts
 import { Response } from 'express'
 import Pedido from '../models/Pedido'
 import Usuario from '../models/Usuario'
@@ -204,3 +205,69 @@ export const updateOrderState = async (req: AuthRequest, res: Response): Promise
     res.status(500).json({ success: false, message: 'Error actualizando estado del pedido' })
   }
 }
+
+// =========================================================================
+// 🟢 AGREGADOS PARA EL MAPA Y EL RASTREO GPS
+// =========================================================================
+
+// PUT /api/delivery/location
+export const actualizarUbicacionRepartidor = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const repartidorId = obtenerUsuarioId(req);
+    const { lat, lng, orderId } = req.body;
+
+    if (!repartidorId) {
+      res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+      return;
+    }
+
+    if (!lat || !lng) {
+      res.status(400).json({ success: false, message: 'Latitud y longitud obligatorias' });
+      return;
+    }
+
+    // 1. Guardar en base de datos para el historial/carga inicial
+    await Usuario.findByIdAndUpdate(repartidorId, {
+      ultimaUbicacion: { lat, lng, updatedAt: new Date() }
+    });
+
+    // 2. Emitir por WebSocket para que el ícono se mueva en vivo sin recargar
+    if (orderId) {
+      getIO().to(String(orderId)).emit('delivery_update', { lat, lng });
+    }
+
+    res.status(200).json({ success: true, message: 'Ubicación actualizada' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error actualizando GPS', error: error.message });
+  }
+};
+
+// GET /api/delivery/map/:pedidoId
+export const obtenerDatosMapa = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { pedidoId } = req.params;
+    
+    // Buscar el pedido para saber a dónde va (Casa del cliente)
+    const pedido = await Pedido.findById(pedidoId);
+    if (!pedido) {
+      res.status(404).json({ success: false, message: 'Pedido no encontrado' });
+      return;
+    }
+
+    // Buscar al repartidor asignado para saber de dónde viene
+    let repartidor = null;
+    if ((pedido as any).repartidorId) {
+      repartidor = await Usuario.findById((pedido as any).repartidorId).select('ultimaUbicacion nombre');
+    }
+
+    res.status(200).json({
+      success: true,
+      restaurante: { lat: -17.3935, lng: -66.1570 }, // Coordenadas fijas del restaurante
+      cliente: pedido.coordenadasEntrega || null,
+      repartidor: repartidor?.ultimaUbicacion || null,
+      repartidorNombre: repartidor?.nombre || 'Buscando repartidor...'
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error cargando mapa', error: error.message });
+  }
+};

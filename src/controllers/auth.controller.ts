@@ -45,6 +45,7 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
       {
         id: userObj._id,
         rol: userObj.rol,
+        role: userObj.rol,
         zona: userObj.ubicacion || userObj.zona || ''
       },
       process.env.JWT_SECRET as string,

@@ -73,6 +73,7 @@ app.get('/api/health', (req: Request, res: Response) => {
   })
 })
 // Agrega esto en tu app.ts o server.ts
+// Reemplaza este bloque exacto en tu src/app.ts
 app.get('/mapa-test', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -80,43 +81,108 @@ app.get('/mapa-test', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <title>Mapa de Pruebas Delivery</title>
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="/socket.io/socket.io.js"></script>
       <style>
         body { margin: 0; font-family: sans-serif; }
-        #map { width: 100%; height: 100vh; background: #e5e5e5; display: flex; align-items: center; justify-content: center; }
-        .info { position: absolute; top: 10px; left: 10px; background: white; padding: 10px; border-radius: 5px; border: 2px solid #000; z-index: 1000;}
+        #map { width: 100%; height: 100vh; background: #e5e5e5; }
+        .info { position: absolute; top: 10px; left: 10px; background: white; padding: 15px; border-radius: 8px; border: 2px solid #111; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+        input { padding: 5px; width: 180px; margin-right: 5px; }
+        button { padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #218838; }
       </style>
     </head>
     <body>
       <div class="info">
-        <b>ID Pedido:</b> <input type="text" id="orderId" placeholder="Pega el ID aquí">
-        <button onclick="conectar()">Rastrear Moto</button>
-        <p id="status">Esperando conexión...</p>
+        <b style="display:block; margin-bottom:5px;">Rastreador GPS en Vivo</b>
+        <b>ID Pedido:</b> <input type="text" id="orderId" placeholder="Pega el ID fresco aquí">
+        <button onclick="conectar()">Rastrear</button>
+        <p id="status" style="margin: 8px 0 0 0; color: #555;">Esperando conexión...</p>
       </div>
       
-      <div id="map">
-        <h2>El mapa MapCN se renderizará aquí</h2>
-        </div>
+      <div id="map"></div>
 
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <script>
-        const socket = io('http://localhost:3000'); // Conexión a tu WebSocket local
+        const socket = io('http://localhost:3000'); 
+        let mapaObj = L.map('map').setView([-17.3935, -66.1570], 14);
         
-        function conectar() {
-          const orderId = document.getElementById('orderId').value;
-          if(!orderId) return alert("Pon un ID de pedido primero");
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(mapaObj);
+        
+        let marcadorMoto;
+        let marcadorCliente;
+        let marcadorRestaurante;
+
+        async function conectar() {
+          const orderId = document.getElementById('orderId').value.trim();
+          if(!orderId) return alert("Por favor, introduce el ID del nuevo pedido primero");
           
-          document.getElementById('status').innerText = "Conectado a la sala: " + orderId;
+          document.getElementById('status').innerText = "Cargando ruta desde la base de datos...";
           
-          // 1. Nos unimos a la sala privada de este pedido
-          socket.emit('join_order_room', orderId);
-          
-          // 2. Escuchamos los movimientos del repartidor
-          socket.on('delivery_update', (coordenadas) => {
-            console.log("¡La moto se movió!", coordenadas);
-            document.getElementById('status').innerText = "📍 Moto en: Lat " + coordenadas.lat + " / Lng " + coordenadas.lng;
+          try {
+            // 1. OBTENER COORDENADAS INICIALES DEL BACKEND
+            const response = await fetch('/api/delivery/map/' + orderId);
+            const data = await response.json();
+
+            if (!data.success) {
+              document.getElementById('status').innerText = "Error: " + data.mensaje;
+              document.getElementById('status').style.color = "red";
+              return;
+            }
+
+            // Dibujar el Restaurante (Origen)
+            if (data.restaurante && !marcadorRestaurante) {
+              marcadorRestaurante = L.marker([data.restaurante.lat, data.restaurante.lng])
+                .addTo(mapaObj).bindPopup("🏪 Restaurante Quirquinita").openPopup();
+            }
+
+            // Dibujar al Cliente (Destino)
+            if (data.cliente && !marcadorCliente) {
+              marcadorCliente = L.marker([data.cliente.lat, data.cliente.lng])
+                .addTo(mapaObj).bindPopup("📍 Casa del Cliente");
+            }
+
+            // Dibujar al Repartidor (Posición actual en BD)
+            if (data.repartidor && !marcadorMoto) {
+              marcadorMoto = L.marker([data.repartidor.lat, data.repartidor.lng])
+                .addTo(mapaObj).bindPopup("🏍️ " + (data.repartidorNombre || "Repartidor"));
+              
+              // Centrar la cámara en la moto
+              mapaObj.setView([data.repartidor.lat, data.repartidor.lng], 15);
+            }
+
+            document.getElementById('status').innerText = "Mapa listo. Conectado a la señal GPS en vivo.";
+            document.getElementById('status').style.color = "#0056b3";
+
+            // 2. CONECTAR AL WEBSOCKET PARA EL MOVIMIENTO EN TIEMPO REAL
+            socket.emit('join_order_room', orderId);
             
-            // AQUÍ: Código de MapCN para mover el ícono en la pantalla usando 'coordenadas.lat' y 'coordenadas.lng'
-          });
+            socket.on('delivery_update', (coordenadas) => {
+              console.log("📍 Coordenadas de la moto recibidas:", coordenadas);
+              
+              if (!coordenadas || !coordenadas.lat || !coordenadas.lng) return;
+
+              document.getElementById('status').innerText = "📍 Moto en movimiento: Lat " + coordenadas.lat + " / Lng " + coordenadas.lng;
+              document.getElementById('status').style.color = "#28a745";
+              
+              const posicionNueva = [coordenadas.lat, coordenadas.lng];
+              
+              if (!marcadorMoto) {
+                marcadorMoto = L.marker(posicionNueva).addTo(mapaObj).bindPopup("🏍️ Repartidor en camino");
+              } else {
+                marcadorMoto.setLatLng(posicionNueva); // Mueve el marcador suavemente
+              }
+              
+              mapaObj.setView(posicionNueva); // Persigue a la moto con la cámara
+            });
+
+          } catch (error) {
+             console.error("Error al cargar el mapa:", error);
+             document.getElementById('status').innerText = "Error de conexión con el servidor.";
+             document.getElementById('status').style.color = "red";
+          }
         }
       </script>
     </body>

@@ -10,7 +10,22 @@ export const permitirRoles = (...rolesPermitidos: string[]) => {
       })
     }
 
-    if (!rolesPermitidos.includes(req.usuario.rol)) {
+    // 1. TOLERANCIA DE PROPIEDAD: Lee tanto 'rol' como 'role' por si develop cambió el idioma
+    const rolUsuario = req.usuario.rol || (req.usuario as any).role
+
+    if (!rolUsuario) {
+      return res.status(403).json({
+        mensaje: 'Acceso denegado. El usuario no contiene un rol válido en el token.'
+      })
+    }
+
+    // 2. TOLERANCIA DE CASING: Pasamos todo a minúsculas para que 'repartidor' coincida con 'Repartidor'
+    const rolUsuarioMinuscula = String(rolUsuario).toLowerCase()
+    const rolesPermitidosMinuscula = rolesPermitidos.map(r => String(r).toLowerCase())
+
+    const tienePermiso = rolesPermitidosMinuscula.includes(rolUsuarioMinuscula)
+
+    if (!tienePermiso) {
       return res.status(403).json({
         mensaje: 'Acceso denegado. No tienes permisos para realizar esta acción.'
       })

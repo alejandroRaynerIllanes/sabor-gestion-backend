@@ -110,7 +110,6 @@ export const swaggerUiOptions = {
   customJsStr: `
     window.addEventListener('load', () => {
       setTimeout(() => {
-        // 1. Automatización del Token
         const originalFetch = window.fetch;
         window.fetch = async (...args) => {
           const response = await originalFetch(...args);
@@ -119,6 +118,14 @@ export const swaggerUiOptions = {
             response.clone().json().then(data => {
               const token = data.token;
               if (token) {
+                // 🟢 SOLUCIÓN CRÍTICA: Forzamos la limpieza del token viejo en Swagger para que no se quede pegado el Cliente
+                try {
+                  window.ui.authActions.unauthorize(['bearerAuth']);
+                } catch (e) { 
+                  console.log('No había token previo que limpiar.'); 
+                }
+
+                // Inyectamos el nuevo token fresco (ya sea de Cliente o de Repartidor)
                 window.ui.authActions.authorize({
                   bearerAuth: {
                     name: 'bearerAuth',
@@ -126,26 +133,13 @@ export const swaggerUiOptions = {
                     value: token
                   }
                 });
-                console.log('¡Token inyectado automáticamente!');
-                alert('Sesión iniciada: Token capturado y aplicado a todas las rutas 🚀');
+                console.log('¡Token actualizado en el entorno de Swagger! 🚀');
+                alert('Sesión iniciada: Token capturado y aplicado a esta pestaña 🚀');
               }
             }).catch(err => console.error('Error capturando token:', err));
           }
           return response;
         };
-
-        // 2. Inyección del Iframe del Mapa
-        const infoContainer = document.querySelector('.info');
-        if (infoContainer && !document.getElementById('simulador-mapa')) {
-          const mapaHtml = document.createElement('div');
-          mapaHtml.id = 'simulador-mapa';
-          mapaHtml.innerHTML = \`
-            <br>
-            <h3 style="margin: 0; padding-bottom: 10px; color: #3b4151;">🗺️ Simulador de Mapa en Vivo:</h3>
-            <iframe src="/mapa-test" width="100%" height="450px" style="border:2px solid #3b4151; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></iframe>
-          \`;
-          infoContainer.appendChild(mapaHtml);
-        }
       }, 1000);
     });
   `
