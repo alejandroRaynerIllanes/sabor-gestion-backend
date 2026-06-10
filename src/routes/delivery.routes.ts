@@ -1,18 +1,24 @@
-import { Router } from 'express';
-import { updateDeliveryStatus, getDeliveryQueue, updateOrderState } from '../controllers/delivery.controller';
+import { Router } from 'express'
+import {
+  updateDeliveryStatus,
+  getDeliveryQueue,
+  updateOrderState,
+  acceptOrder,
+  rejectOrder
+} from '../controllers/delivery.controller'
 
-import { verificarToken } from '../middlewares/auth.middleware'; 
-import { permitirRoles } from '../middlewares/rol.middleware';   
+import { verificarToken } from '../middlewares/auth.middleware'
+import { permitirRoles } from '../middlewares/rol.middleware'
 
-const router = Router();
+const router = Router()
 
-// Todas las rutas requieren ser repartidor autenticado
-router.use(verificarToken);
-// SOLUCIÓN: Sin corchetes, separados por coma
-router.use(permitirRoles('repartidor', 'Delivery')); 
+router.use(verificarToken)
+router.use(permitirRoles('repartidor'))
 
-router.put('/status', updateDeliveryStatus);
-router.get('/queue', getDeliveryQueue);
-router.put('/orders/:id/state', updateOrderState);
+router.put('/status', updateDeliveryStatus)
+router.get('/queue', getDeliveryQueue)
+router.put('/orders/:id/accept', acceptOrder)
+router.put('/orders/:id/reject', rejectOrder)
+router.put('/orders/:id/state', updateOrderState)
 
-export default router;
+export default router
