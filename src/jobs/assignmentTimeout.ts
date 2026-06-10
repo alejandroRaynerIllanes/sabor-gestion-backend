@@ -1,29 +1,38 @@
-import Pedido from '../models/Pedido';
+import Pedido from '../models/Pedido'
+import { asignarRepartidorDisponible } from '../services/delivery.service'
+import { getIO } from '../socket/socket'
 
 export const startAssignmentTimeout = () => {
-  // Se ejecuta cada 30 segundos evaluando pedidos
+  // Se ejecuta cada 30 segundos evaluando pedidos.
   setInterval(async () => {
-    const TIMEOUT_MS = 3 * 60 * 1000; // 3 minutos
-    const limiteTiempo = new Date(Date.now() - TIMEOUT_MS);
+    const TIMEOUT_MS = 3 * 60 * 1000
+    const limiteTiempo = new Date(Date.now() - TIMEOUT_MS)
 
     try {
-      // Buscar pedidos asignados que sigan pendientes de aceptación despues de 3 minutos
       const pedidosExpirados = await Pedido.find({
         estado: 'Pendiente_de_Aceptacion',
-        createdAt: { $lt: limiteTiempo },
-        repartidorId: { $ne: null } 
-      });
+        updatedAt: { $lt: limiteTiempo },
+        repartidorId: { $ne: null }
+      })
 
       for (const pedido of pedidosExpirados) {
-        // SOLUCIÓN: Usar undefined para satisfacer a TypeScript
-        pedido.repartidorId = undefined;
-        
-        // Opcional: Aquí podrías disparar el algoritmo para buscar al siguiente disponible
-        await pedido.save();
-        console.log(`[Timeout] Pedido ${pedido._id} desvinculado por falta de respuesta.`);
+        pedido.repartidorId = undefined
+        await pedido.save()
+
+        const pedidoReasignado = await asignarRepartidorDisponible(String(pedido._id))
+
+        try {
+          const io = getIO()
+          io.to(String(pedido._id)).emit('delivery:asignacion_expirada', pedido)
+          io.emit('delivery:pedido_reasignado', pedidoReasignado || pedido)
+        } catch (socketError) {
+          console.warn('[Timeout] Reasignacion procesada, pero fallo el socket')
+        }
+
+        console.log(`[Timeout] Pedido ${pedido._id} procesado por falta de respuesta.`)
       }
     } catch (error) {
-      console.error('[Timeout] Error al procesar desvinculaciones de pedidos:', error);
+      console.error('[Timeout] Error al procesar desvinculaciones de pedidos:', error)
     }
-  }, 30000);
-};
+  }, 30000)
+}

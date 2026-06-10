@@ -10,6 +10,7 @@ import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
 import { PedidoService } from '../services/pedido.service'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 import { CustomRequest } from '../middlewares/auth.middleware' // <-- AÑADIDO para leer req.usuario
+import { asignarRepartidorDisponible } from '../services/delivery.service'
 
 // procesarDescuentoPedido es invocado internamente por PedidoService.actualizarEstadoService
 
@@ -487,57 +488,111 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
 // <-- NUEVA FUNCIÓN: Checkout para Pedidos Delivery -->
 export const checkoutPedido = async (req: CustomRequest, res: Response): Promise<void> => {
   try {
-    const { items, metodoPago, coordenadasEntrega, total } = req.body; 
+    const { items, metodoPago, coordenadasEntrega, total } = req.body
 
-    // 1. Verificación síncrona de stock
+    if (!req.usuario?.id) {
+      res.status(401).json({ success: false, mensaje: 'Usuario no autenticado' })
+      return
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ success: false, mensaje: 'El checkout requiere al menos un item.' })
+      return
+    }
+
+    const lat = Number(coordenadasEntrega?.lat)
+    const lng = Number(coordenadasEntrega?.lng)
+    const coordenadasValidas =
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat !== 0 &&
+      lng !== 0 &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180
+
+    if (!coordenadasValidas) {
+      res.status(400).json({
+        success: false,
+        mensaje: 'Las coordenadas de entrega son obligatorias y deben ser validas.'
+      })
+      return
+    }
+
+    // 1. Verificacion sincrona de stock de platos para bloquear checkout sin disponibilidad.
     for (const item of items) {
-      const plato = await Plato.findById(item.platoId || item.plato); // Compatibilidad de nombres
-      if (!plato || plato.stock < item.cantidad) {
-         res.status(400).json({ 
-          success: false, 
-          mensaje: `Stock insuficiente para el plato: ${plato?.nombre || 'Desconocido'}` 
-        });
-        return;
+      const cantidad = Number(item.cantidad)
+      if (!cantidad || cantidad <= 0) {
+        res.status(400).json({ success: false, mensaje: 'Cada item debe tener una cantidad mayor a cero.' })
+        return
+      }
+
+      const plato = await Plato.findById(item.platoId || item.plato)
+      if (!plato || plato.stock < cantidad) {
+        res.status(400).json({
+          success: false,
+          mensaje: `Stock insuficiente para el plato: ${plato?.nombre || 'Desconocido'}`
+        })
+        return
       }
     }
 
-    // 2. Restar stock (Operación atómica recomendada)
+    // 2. Reservar stock de platos para evitar sobreventa durante el delivery.
     for (const item of items) {
-      await Plato.findByIdAndUpdate(item.platoId || item.plato, { $inc: { stock: -item.cantidad } });
+      await Plato.findByIdAndUpdate(item.platoId || item.plato, {
+        $inc: { stock: -Number(item.cantidad) }
+      })
     }
 
-    // 3. Generar documento del pedido cumpliendo las reglas del Schema IPedido
-    const pedidoId = new mongoose.Types.ObjectId();
-    const fechaHora = obtenerFechaBolivia();
+    // 3. Generar documento del pedido cumpliendo las reglas del Schema IPedido.
+    const pedidoId = new mongoose.Types.ObjectId()
+    const fechaHora = obtenerFechaBolivia()
 
-    // Mapeamos los items al formato exacto que pide IDetallePedido
     const detallesFormateados = items.map((item: any) => ({
       plato: item.platoId || item.plato,
-      cantidad: item.cantidad,
-      precioUnitario: item.precioUnitario || 0,
-      subtotal: (item.precioUnitario || 0) * item.cantidad,
+      cantidad: Number(item.cantidad),
+      precioUnitario: Number(item.precioUnitario || 0),
+      subtotal: Number(item.precioUnitario || 0) * Number(item.cantidad),
       observacion: item.observacion || ''
-    }));
+    }))
 
     const nuevoPedido = new Pedido({
       _id: pedidoId,
-      codigo: `PED-${String(pedidoId).slice(-4).toUpperCase()}`, // Código obligatorio
-      usuario: req.usuario?.id, // ID del cliente
+      codigo: `PED-${String(pedidoId).slice(-4).toUpperCase()}`,
+      usuario: req.usuario.id,
       metodoEntrega: 'delivery',
       detalles: detallesFormateados,
       total: total || detallesFormateados.reduce((acc: number, cur: any) => acc + cur.subtotal, 0),
       metodoPago: metodoPago || 'Efectivo',
-      estado: 'Pendiente_de_Aceptacion', // Estado inicial de delivery
-      coordenadasEntrega,
+      estado: 'Pendiente_de_Aceptacion',
+      coordenadasEntrega: { lat, lng },
       fechaHoraBolivia: formatearFechaBolivia(fechaHora),
       fechaHora
-    });
+    })
 
-    await nuevoPedido.save();
+    await nuevoPedido.save()
 
-    res.status(201).json({ success: true, pedido: agregarFechaBoliviaPedido(nuevoPedido) });
+    const pedidoAsignado = await asignarRepartidorDisponible(String(nuevoPedido._id))
+    const pedidoRespuesta = pedidoAsignado || nuevoPedido
+
+    try {
+      const io = getIO()
+      io.emit('delivery:nuevo_pedido', pedidoRespuesta)
+      if (pedidoAsignado?.repartidorId) {
+        io.emit('delivery:pedido_asignado', pedidoAsignado)
+      }
+    } catch (socketError) {
+      console.warn('Checkout delivery creado, pero fallo la notificacion en tiempo real')
+    }
+
+    res.status(201).json({
+      success: true,
+      pedido: agregarFechaBoliviaPedido(pedidoRespuesta),
+      asignado: Boolean(pedidoAsignado)
+    })
   } catch (error) {
-    const err = error as Error;
-    res.status(500).json({ success: false, mensaje: 'Error procesando checkout', error: err.message });
+    const err = error as Error
+    res.status(500).json({ success: false, mensaje: 'Error procesando checkout', error: err.message })
   }
-};
+}
