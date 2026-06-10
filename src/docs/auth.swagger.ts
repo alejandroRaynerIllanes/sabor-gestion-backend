@@ -33,3 +33,62 @@
  *       500:
  *         description: Error interno del servidor.
  */
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Registra un nuevo usuario en el sistema
+ *     description: El sistema recibe los datos de entrada, encripta la contraseña y almacena el nuevo documento en la base de datos, asignando los valores por defecto correspondientes a su esquema.
+ *     tags: [Autenticación]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nombre
+ *               - apellido
+ *               - ci
+ *               - email
+ *               - password
+ *               - rol
+ *             properties:
+ *               nombre:
+ *                 type: string
+ *                 example: "Carlos"
+ *               apellido:
+ *                 type: string
+ *                 example: "Mendoza"
+ *               ci:
+ *                 type: string
+ *                 description: Cédula de identidad única en el sistema.
+ *                 example: "12345678"
+ *               email:
+ *                 type: string
+ *                 description: Correo electrónico único en el sistema.
+ *                 example: "cliente@quirquinita.com"
+ *               password:
+ *                 type: string
+ *                 example: "password123"
+ *               rol:
+ *                 type: string
+ *                 enum:
+ *                   - Administrador
+ *                   - Mesero
+ *                   - Cocinero
+ *                   - Cajero
+ *                   - Cliente
+ *                   - repartidor
+ *                 example: "Cliente"
+ *     responses:
+ *       201:
+ *         description: El sistema creó el usuario exitosamente y lo almacenó en la base de datos.
+ *       400:
+ *         description: El sistema rechazó la solicitud por la falta de un campo obligatorio o formato inválido.
+ *       409:
+ *         description: El sistema detectó un conflicto de duplicidad (el email o el CI ya se encuentran registrados).
+ *       500:
+ *         description: Error interno del servidor durante la inserción en MongoDB.
+ */

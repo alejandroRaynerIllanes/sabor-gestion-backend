@@ -70,6 +70,56 @@ app.get('/api/health', (req: Request, res: Response) => {
     message: 'API de Sabor & Gestión funcionando correctamente 🚀'
   })
 })
+// Agrega esto en tu app.ts o server.ts
+app.get('/mapa-test', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Mapa de Pruebas Delivery</title>
+      <script src="/socket.io/socket.io.js"></script>
+      <style>
+        body { margin: 0; font-family: sans-serif; }
+        #map { width: 100%; height: 100vh; background: #e5e5e5; display: flex; align-items: center; justify-content: center; }
+        .info { position: absolute; top: 10px; left: 10px; background: white; padding: 10px; border-radius: 5px; border: 2px solid #000; z-index: 1000;}
+      </style>
+    </head>
+    <body>
+      <div class="info">
+        <b>ID Pedido:</b> <input type="text" id="orderId" placeholder="Pega el ID aquí">
+        <button onclick="conectar()">Rastrear Moto</button>
+        <p id="status">Esperando conexión...</p>
+      </div>
+      
+      <div id="map">
+        <h2>El mapa MapCN se renderizará aquí</h2>
+        </div>
 
+      <script>
+        const socket = io('http://localhost:3000'); // Conexión a tu WebSocket local
+        
+        function conectar() {
+          const orderId = document.getElementById('orderId').value;
+          if(!orderId) return alert("Pon un ID de pedido primero");
+          
+          document.getElementById('status').innerText = "Conectado a la sala: " + orderId;
+          
+          // 1. Nos unimos a la sala privada de este pedido
+          socket.emit('join_order_room', orderId);
+          
+          // 2. Escuchamos los movimientos del repartidor
+          socket.on('delivery_update', (coordenadas) => {
+            console.log("¡La moto se movió!", coordenadas);
+            document.getElementById('status').innerText = "📍 Moto en: Lat " + coordenadas.lat + " / Lng " + coordenadas.lng;
+            
+            // AQUÍ: Código de MapCN para mover el ícono en la pantalla usando 'coordenadas.lat' y 'coordenadas.lng'
+          });
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
 
 export default app

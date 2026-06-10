@@ -6,6 +6,7 @@ const options: swaggerJSDoc.Options = {
     info: {
       title: 'API de Sabor & Gestión',
       version: '1.0.0',
+      // Quitamos el iframe de aquí porque Swagger lo bloquea
       description: 'Documentación técnica del comportamiento del sistema backend. Detalla las validaciones de datos, flujos de estado y operaciones en la base de datos MongoDB.'
     },
     servers: [
@@ -109,6 +110,7 @@ export const swaggerUiOptions = {
   customJsStr: `
     window.addEventListener('load', () => {
       setTimeout(() => {
+        // 1. Automatización del Token
         const originalFetch = window.fetch;
         window.fetch = async (...args) => {
           const response = await originalFetch(...args);
@@ -131,6 +133,19 @@ export const swaggerUiOptions = {
           }
           return response;
         };
+
+        // 2. Inyección del Iframe del Mapa
+        const infoContainer = document.querySelector('.info');
+        if (infoContainer && !document.getElementById('simulador-mapa')) {
+          const mapaHtml = document.createElement('div');
+          mapaHtml.id = 'simulador-mapa';
+          mapaHtml.innerHTML = \`
+            <br>
+            <h3 style="margin: 0; padding-bottom: 10px; color: #3b4151;">🗺️ Simulador de Mapa en Vivo:</h3>
+            <iframe src="/mapa-test" width="100%" height="450px" style="border:2px solid #3b4151; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></iframe>
+          \`;
+          infoContainer.appendChild(mapaHtml);
+        }
       }, 1000);
     });
   `

@@ -1,4 +1,4 @@
-//src/controllers/usuario.controller.ts
+// src/controllers/usuario.controller.ts
 import { Request, Response } from 'express'
 import { CustomRequest } from '../middlewares/auth.middleware'
 import Usuario from '../models/Usuario'
@@ -6,10 +6,10 @@ import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 import CierreCaja from '../models/CierreCaja'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
+
 // Listar todos los usuarios (Para tu tabla principal)
 export const obtenerUsuarios = async (req: Request, res: Response) => {
   try {
-    // Como 'ubicacion' ya está en el modelo, podemos usar Mongoose normalmente
     const usuarios = await Usuario.find().select('-password').lean()
 
     // MAPEO: Adaptamos 'ubicacion' de MongoDB al campo 'zona' que requiere el Frontend
@@ -71,17 +71,15 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
       email,
       password: passwordHasheada,
       rol,
-      ubicacion: zona // Ahora Mongoose sí lo guardará automáticamente
-      // El 'estado: true' se pone automáticamente por el modelo
+      ubicacion: zona 
     })
 
     // 4. Guardar en MongoDB
     await nuevoUsuario.save()
 
-    // Consultamos la verdad absoluta
     const usuarioCreado: any = await Usuario.findById(nuevoUsuario._id).select('-password').lean()
 
-    // 5. Responder al frontend confirmando la creación (sin enviar el password de vuelta)
+    // 5. Responder al frontend confirmando la creación
     res.status(201).json({
       mensaje: 'Usuario creado exitosamente',
       usuario: {
@@ -95,12 +93,10 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
     console.error('ERROR DETALLADO:', error)
     res.status(500).json({
       mensaje: 'Error en el servidor',
-      error: error.message // Esto te dirá si es por el CI, el ROL o el EMAIL
+      error: error.message
     })
   }
 }
-
-// --- AÑADE ESTO AL FINAL DE TU ARCHIVO usuario.controller.ts ---
 
 // 3. Actualizar Usuario (Modal Editar)
 export const actualizarUsuario = async (req: Request, res: Response): Promise<any> => {
@@ -112,7 +108,6 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
       `\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`
     )
 
-    // Buscar al usuario por ID
     let usuario = await Usuario.findById(id)
     if (!usuario) {
       return res.status(404).json({ mensaje: 'Usuario no encontrado' })
@@ -135,7 +130,6 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
         .json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
     }
 
-    // Si el admin mandó un CI o Email diferente, verificar que no choque con otro usuario
     const orConditions: any[] = []
     if (email !== undefined && email !== usuario.email) orConditions.push({ email: email })
     if (ci !== undefined && ci !== usuario.ci) orConditions.push({ ci: ci })
@@ -153,7 +147,6 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
       }
     }
 
-    // Preparar los datos a actualizar (solo incluir campos definidos)
     const datosActualizados: any = {}
     if (nombre !== undefined) datosActualizados.nombre = nombre
     if (apellido !== undefined) datosActualizados.apellido = apellido
@@ -162,14 +155,12 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     if (rol !== undefined) datosActualizados.rol = rol
     if (zona !== undefined) datosActualizados.ubicacion = zona
 
-    // TRUCO: Solo actualizamos la contraseña si el frontend nos envió una nueva
     if (password && typeof password === 'string' && password.trim() !== '') {
       console.log(`[USUARIO] Se solicitó cambio de contraseña para usuario id=${id}`)
       const salt = await bcrypt.genSalt(10)
       datosActualizados.password = await bcrypt.hash(password, salt)
     }
 
-    // Regresamos al método limpio y nativo de Mongoose para actualizar
     const usuarioActualizado: any = await Usuario.findByIdAndUpdate(
       id,
       { $set: datosActualizados },
@@ -203,16 +194,14 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
 export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params
-    const { estado, reporte } = req.body // Recibimos true o false, y reporte al cerrar caja
+    const { estado, reporte } = req.body 
 
-    // Si el rol es 'Cajero', asegurarse de que solo cambie su propia caja
     if (req.usuario && req.usuario.rol.toLowerCase() === 'cajero' && req.usuario.id !== id) {
       return res.status(403).json({
         mensaje: 'Acceso denegado. Un cajero solo puede cambiar el estado de su propia caja.'
       })
     }
 
-    // --- NUEVA VALIDACIÓN: Mínimo 1 caja activa ---
     if (estado === false || String(estado) === 'false') {
       const usuarioTarget = await Usuario.findById(id)
       if (usuarioTarget && usuarioTarget.rol.toLowerCase() === 'cajero') {
@@ -229,7 +218,6 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
         }
       }
     }
-    // ----------------------------------------------
 
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
       id,
@@ -243,7 +231,6 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
       return res.status(404).json({ mensaje: 'Usuario no encontrado' })
     }
 
-    // 🔥 REGISTRO AUTOMÁTICO DE CIERRE DE CAJA EN MONGODB
     if ((estado === false || String(estado) === 'false') && reporte) {
       const fechaCierre = obtenerFechaBolivia()
       const nuevoCierre = new CierreCaja({
@@ -287,5 +274,65 @@ export const eliminarUsuario = async (req: Request, res: Response): Promise<any>
   } catch (error) {
     console.error('Error al eliminar:', error)
     res.status(500).json({ mensaje: 'Error al eliminar el usuario' })
+  }
+}
+
+// =========================================================================
+// 🟢 AGREGADO: CONTROLADOR PARA LA DIRECCIÓN DE ENTREGA DEL CLIENTE (DELIVERY)
+// =========================================================================
+export const agregarDireccionEntrega = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { lat, lng, etiqueta } = req.body
+    const customReq = req as CustomRequest // Asegura compatibilidad con el enrutador de Express
+
+    // Validación técnica estricta de coordenadas (MapCN)
+    if (!lat || !lng || lat === 0 || lng === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        mensaje: 'Las coordenadas no pueden ser nulas o cero. La geolocalización es obligatoria.' 
+      })
+    }
+
+    const clienteId = customReq.usuario?.id
+
+    if (!clienteId) {
+      return res.status(401).json({ 
+        success: false, 
+        mensaje: 'No autorizado. Token inválido o ausente.' 
+      })
+    }
+
+    // Insertar la nueva dirección directamente en el arreglo del usuario
+    const usuarioActualizado = await Usuario.findByIdAndUpdate(
+      clienteId,
+      { 
+        $push: { 
+          direccionesDelivery: { 
+            etiqueta: (etiqueta || 'Dirección de Entrega').toString().trim(), 
+            lat, 
+            lng 
+          } 
+        } 
+      },
+      { new: true }
+    )
+
+    if (!usuarioActualizado) {
+      return res.status(404).json({ success: false, mensaje: 'Usuario no encontrado' })
+    }
+
+    return res.status(201).json({ 
+      success: true, 
+      mensaje: 'Dirección añadida exitosamente al perfil', 
+      direcciones: (usuarioActualizado as any).direccionesDelivery 
+    })
+
+  } catch (error: any) {
+    console.error('agregarDireccionEntrega error:', error)
+    return res.status(500).json({ 
+      success: false, 
+      mensaje: 'Error en el servidor al actualizar las direcciones', 
+      error: error.message || error 
+    })
   }
 }
