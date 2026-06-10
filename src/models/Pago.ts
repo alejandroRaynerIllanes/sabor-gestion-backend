@@ -4,6 +4,7 @@ import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivi
 
 export interface IPago extends Document {
   codigoPago: string
+  codigoPedido: string
   pedido: mongoose.Types.ObjectId
   mesa: mongoose.Types.ObjectId
   mesero: mongoose.Types.ObjectId
@@ -30,9 +31,11 @@ const PagoSchema = new Schema(
   {
     // 🔑 Identificación
     codigoPago: { type: String, required: true, unique: true },
+    
 
     // 🔗 Relaciones
     // Nota: Asegúrate de que los nombres en "ref" coincidan con tus otros modelos exportados
+    codigoPedido: { type: String, required: true },
     pedido: { type: Schema.Types.ObjectId, ref: 'Pedido', required: true },
     mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: true },
     mesero: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true }, // Asumo que el mesero viene de la tabla usuarios
