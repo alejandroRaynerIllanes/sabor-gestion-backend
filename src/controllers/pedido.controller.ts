@@ -274,13 +274,18 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       cajeroAsignado,
       montoDescuento,
       montoPropina,
-      subtotalCierre
+      subtotalCierre,
+      repartidorId,
+      estado
     } = req.body
 
     const pedidoAnterior = await Pedido.findById(id)
     const updates: any = {}
     if (total !== undefined) updates.total = total
     if (detalles !== undefined) updates.detalles = detalles
+
+    if (repartidorId !== undefined) updates.repartidorId = repartidorId
+    if (estado !== undefined) updates.estado = estado
 
     // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
     if (
@@ -488,7 +493,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
 // <-- NUEVA FUNCIÓN: Checkout para Pedidos Delivery -->
 export const checkoutPedido = async (req: CustomRequest, res: Response): Promise<void> => {
   try {
-    const { items, metodoPago, coordenadasEntrega, total } = req.body
+    const { items, metodoPago, coordenadasEntrega, total, direccionEntrega, referenciaEntrega, costoDelivery, clienteTelefono, clienteNombre } = req.body
 
     if (!req.usuario?.id) {
       res.status(401).json({ success: false, mensaje: 'Usuario no autenticado' })
@@ -567,6 +572,11 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       metodoPago: metodoPago || 'Efectivo',
       estado: 'Pendiente_de_Aceptacion',
       coordenadasEntrega: { lat, lng },
+      direccionEntrega,
+      referenciaEntrega,
+      costoDelivery,
+      clienteTelefono,
+      clienteNombre,
       fechaHoraBolivia: formatearFechaBolivia(fechaHora),
       fechaHora
     })
