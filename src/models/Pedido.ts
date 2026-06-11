@@ -5,6 +5,7 @@ import { obtenerFechaBolivia } from '../utils/fechaBolivia'
 // 1. Interfaz y Esquema para el Detalle
 export interface IDetallePedido {
   plato: mongoose.Types.ObjectId
+  nombrePlato?: string
   cantidad: number
   precioUnitario: number
   subtotal: number
@@ -14,6 +15,7 @@ export interface IDetallePedido {
 const DetallePedidoSchema = new Schema<IDetallePedido>(
   {
     plato: { type: Schema.Types.ObjectId, ref: 'Plato', required: true },
+    nombrePlato: { type: String, default: 'Plato' }, 
     cantidad: { type: Number, required: true, min: 1 },
     precioUnitario: { type: Number, required: true },
     subtotal: { type: Number, required: true },
@@ -42,6 +44,14 @@ export interface IPedido extends Document {
   clienteCI?: string
   clienteNIT?: string
   cajeroAsignado?: mongoose.Types.ObjectId
+  
+  // <-- NUEVOS CAMPOS PARA DELIVERY -->
+  metodoEntrega?: string
+  repartidorId?: mongoose.Types.ObjectId
+  coordenadasEntrega?: {
+    lat: number
+    lng: number
+  }
 }
 
 const PedidoSchema = new Schema(
@@ -54,7 +64,11 @@ const PedidoSchema = new Schema(
     },
     estado: {
       type: String,
-      enum: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'CANCELADO', 'CERRADO'],
+      // Se fusionan los estados del restaurante local con los de seguimiento de delivery
+      enum: [
+        'ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'CANCELADO', 'CERRADO', // Originales
+        'Pendiente_de_Aceptacion', 'En_Cocina', 'Repartidor_Esperando', 'En_Transito', 'Senal_Debil' // Delivery
+      ],
       default: 'ABIERTO'
     },
     total: { type: Number, required: true, default: 0 },
@@ -71,13 +85,35 @@ const PedidoSchema = new Schema(
     },
     montoDescuento: { type: Number, default: 0 },
     montoPropina: { type: Number, default: 0 },
-    subtotalCierre: { type: Number, default: 0 }, // Total antes de descuentos/propinas
+    subtotalCierre: { type: Number, default: 0 }, 
     clienteNombre: { type: String, required: false },
     clienteCI: { type: String, required: false },
     clienteNIT: { type: String, required: false },
     cajeroAsignado: { type: Schema.Types.ObjectId, ref: 'Usuario', required: false },
     fechaHora: { type: Date, default: obtenerFechaBolivia },
-    fechaHoraBolivia: { type: String, required: false }
+    fechaHoraBolivia: { type: String, required: false },
+
+    // <-- NUEVOS CAMPOS PARA DELIVERY -->
+    metodoEntrega: {
+      type: String,
+      enum: ['local', 'delivery'],
+      default: 'local'
+    },
+    repartidorId: { 
+      type: Schema.Types.ObjectId, 
+      ref: 'Usuario', 
+      required: false 
+    },
+    coordenadasEntrega: {
+      lat: { 
+        type: Number, 
+        required: function(this: IPedido) { return this.metodoEntrega === 'delivery' } 
+      },
+      lng: { 
+        type: Number, 
+        required: function(this: IPedido) { return this.metodoEntrega === 'delivery' } 
+      }
+    }
   },
   {
     timestamps: true,
@@ -88,5 +124,6 @@ const PedidoSchema = new Schema(
 PedidoSchema.index({ estado: 1 })
 PedidoSchema.index({ createdAt: -1 })
 PedidoSchema.index({ mesa: 1 })
+PedidoSchema.index({ repartidorId: 1 }) // Índice extra para búsquedas rápidas del repartidor
 
 export default mongoose.model<IPedido>('Pedido', PedidoSchema)

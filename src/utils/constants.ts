@@ -1,3 +1,4 @@
+//src/utils/constants.ts
 // ─── Constantes Globales del Sistema ─────────────────────────────────────────
 
 export const ESTADOS_MESA = {

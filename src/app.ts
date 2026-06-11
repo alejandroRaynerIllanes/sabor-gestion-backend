@@ -20,6 +20,8 @@ import inventarioRoutes from './routes/inventario.routes'
 
 import swaggerUi from 'swagger-ui-express'
 import { swaggerSpec, swaggerUiOptions } from './configs/swagger'
+import deliveryRoutes from './routes/delivery.routes'
+import direccionRoutes from './routes/direccion.routes'
 
 const app: Application = express()
 
@@ -61,6 +63,8 @@ app.use('/api/inventario', inventarioRoutes)
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions as any))
 
+app.use('/api/delivery', deliveryRoutes)
+app.use('/api/direcciones', direccionRoutes)
 // Health check / Ruta de prueba
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({
@@ -68,5 +72,6 @@ app.get('/api/health', (req: Request, res: Response) => {
     message: 'API de Sabor & Gestión funcionando correctamente 🚀'
   })
 })
+
 
 export default app
