@@ -37,7 +37,7 @@ const UsuarioSchema = new Schema(
     password: { type: String, required: true },
     rol: {
       type: String,
-      enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero', 'Cliente', 'repartidor'], 
+      enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero', 'Cliente', 'Delivery'], 
       required: true
     },
     ubicacion: { type: String, required: false },

@@ -77,7 +77,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     const contadorDoc: any = await Contador.findOneAndUpdate(
       { nombre_secuencia: 'reservas_restaurante' },
       { $inc: { secuencia: 1 } },
-      { new: true, upsert: true } // Si no existe, lo crea y le pone 1
+      { returnDocument: 'after', upsert: true } // Si no existe, lo crea y le pone 1
     )
 
     const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
