@@ -70,11 +70,11 @@ export const loginUsuario = async (req: Request, res: Response): Promise<void> =
 
 export const registrarUsuario = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nombre, apellido, ci, email, password } = req.body
+    const { nombre, apellido, ci, telefono, email, password } = req.body
 
-    if (!nombre || !apellido || !ci || !email || !password) {
+    if (!nombre || !email || !password) {
       res.status(400).json({
-        mensaje: 'Todos los campos son obligatorios: nombre, apellido, ci, email, password'
+        mensaje: 'Los campos obligatorios son: nombre, email, password'
       })
       return
     }
@@ -86,19 +86,23 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
         .json({ mensaje: 'El nombre solo debe contener letras y máximo 30 caracteres.' })
       return
     }
-    if (!regexNombres.test(apellido) || apellido.length > 30) {
+    if (apellido && (!regexNombres.test(apellido) || apellido.length > 30)) {
       res
         .status(400)
         .json({ mensaje: 'Los apellidos solo deben contener letras y máximo 30 caracteres.' })
       return
     }
-    if (!/^\d+$/.test(ci) || ci.length > 8) {
+    if (ci && (!/^\d+$/.test(ci) || ci.length > 8)) {
       res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
+      return
+    }
+    if (telefono && (!/^\d+$/.test(telefono) || telefono.length > 15)) {
+      res.status(400).json({ mensaje: 'El Teléfono solo debe contener números.' })
       return
     }
 
     const usuarioExistente = await Usuario.findOne({
-      $or: [{ email }, { ci }]
+      $or: [{ email }, ...(ci ? [{ ci }] : [])]
     })
 
     if (usuarioExistente) {
@@ -106,7 +110,7 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
         res.status(400).json({ mensaje: 'El correo electrónico ya está registrado' })
         return
       }
-      if (usuarioExistente.ci === ci) {
+      if (ci && usuarioExistente.ci === ci) {
         res.status(400).json({ mensaje: 'El CI ya está registrado' })
         return
       }
@@ -120,6 +124,7 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
       nombre,
       apellido,
       ci,
+      telefono,
       email,
       password: passwordHasheada,
       rol: 'Cliente',

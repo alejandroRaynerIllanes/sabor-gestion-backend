@@ -17,7 +17,7 @@ const formatearFechaReservaBolivia = (fechaReserva: string, horaReserva: string)
 
 export const crearReserva = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
-    const { mesa, tableId, date, fecha, time, hora, clientName, guestCount, vip } = req.body
+    const { mesa, tableId, date, fecha, time, hora, clientName, guestCount } = req.body
 
     const mesaId = mesa || tableId
     const fechaReserva = date || fecha
@@ -94,7 +94,6 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       hora: horaReserva,
       clienteNombre: nombreCliente,
       cantidadPersonas,
-      vip: Boolean(vip),
       mesa: mesaId,
       usuario: usuarioId
     })
@@ -123,7 +122,6 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       dateBolivia: reservaGuardada?.fechaBolivia,
       date: reservaGuardada?.fecha,
       time: reservaGuardada?.hora,
-      vip: reservaGuardada?.vip,
       mesa: reservaGuardada?.mesa,
       usuario: reservaGuardada?.usuario,
       createdAt: reservaGuardada?.createdAt
@@ -165,7 +163,6 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
       dateBolivia: reserva.fechaBolivia,
       date: reserva.fecha,
       time: reserva.hora,
-      vip: reserva.vip,
       mesa: reserva.mesa,
       usuario: reserva.usuario,
       createdAt: reserva.createdAt

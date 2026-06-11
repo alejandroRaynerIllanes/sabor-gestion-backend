@@ -13,8 +13,8 @@ import { soloAdmins } from '../middlewares/rol.middleware'
 
 const router = Router()
 
-// GET: Todos los usuarios con sesión iniciada pueden ver las categorías
-router.get('/', verificarToken, obtenerCategorias)
+// GET: Ruta pública para que el menú de clientes funcione sin iniciar sesión
+router.get('/', obtenerCategorias)
 
 // POST, PUT, DELETE: Solo el Administrador puede modificar las categorías
 router.post('/', verificarToken, soloAdmins, crearCategoria)
