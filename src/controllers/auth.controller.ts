@@ -96,8 +96,8 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
       res.status(400).json({ mensaje: 'El CI solo debe contener números y máximo 8 dígitos.' })
       return
     }
-    if (telefono && (!/^\d+$/.test(telefono) || telefono.length > 15)) {
-      res.status(400).json({ mensaje: 'El Teléfono solo debe contener números.' })
+    if (telefono && (!/^[\d\s\+\-()]+$/.test(telefono) || telefono.length > 20)) {
+      res.status(400).json({ mensaje: 'El Teléfono tiene un formato inválido.' })
       return
     }
 
@@ -119,12 +119,16 @@ export const registrarUsuario = async (req: Request, res: Response): Promise<voi
     const salt = await bcrypt.genSalt(10)
     const passwordHasheada = await bcrypt.hash(password, salt)
 
+    // FIX: Para clientes públicos, asignamos valores por defecto seguros para que la BD no falle
+    const apellidoFinal = apellido && apellido.trim() !== '' ? apellido : 'Sin Apellido'
+    const ciFinal = ci && ci.trim() !== '' ? ci : `CLI-${Date.now().toString().slice(-5)}${Math.floor(Math.random() * 100)}`
+
     // ✅ CORRECCIÓN: Forzamos verificado a true desde el inicio
     const nuevoUsuario = new Usuario({
       nombre,
-      apellido,
-      ci,
-      telefono,
+      apellido: apellidoFinal,
+      ci: ciFinal,
+      telefono: telefono || '',
       email,
       password: passwordHasheada,
       rol: 'Cliente',
