@@ -170,6 +170,16 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
     pedido.estado = ESTADOS_PEDIDO.CANCELADO
     await pedido.save()
 
+    // NUEVO: Si fue un pedido de delivery, devolver el stock reservado de los Platos
+    const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido;
+    if (pedidoPlano.metodoEntrega === 'delivery' && Array.isArray(pedidoPlano.detalles)) {
+      for (const item of pedidoPlano.detalles) {
+        await Plato.findByIdAndUpdate(item.plato, {
+          $inc: { stock: Number(item.cantidad) } // Sumamos de vuelta la cantidad
+        })
+      }
+    }
+
     // Si el pedido tenía una mesa asignada, la liberamos
     if (pedido.mesa) {
       const inicioHoy = obtenerFechaBolivia()

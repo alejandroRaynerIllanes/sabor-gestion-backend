@@ -115,13 +115,16 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida JSON
     const reservaFormateada = {
       id: reservaGuardada?._id,
+      _id: reservaGuardada?._id,
       codigo: reservaGuardada?.codigo,
-      //numeroPedido: reservaGuardada?.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
       clientName: reservaGuardada?.clienteNombre,
+      clienteNombre: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
+      cantidadPersonas: reservaGuardada?.cantidadPersonas,
       dateBolivia: reservaGuardada?.fechaBolivia,
       date: reservaGuardada?.fecha,
       time: reservaGuardada?.hora,
+      startTime: reservaGuardada?.hora,
       mesa: reservaGuardada?.mesa,
       usuario: reservaGuardada?.usuario,
       createdAt: reservaGuardada?.createdAt
