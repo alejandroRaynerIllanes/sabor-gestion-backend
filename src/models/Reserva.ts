@@ -19,7 +19,7 @@ export interface IReserva extends Document {
 const ReservaSchema = new Schema(
   {
     codigo: { type: String, unique: true, required: true },
-     pedidoId: { type: String, required: true },
+     pedidoId: { type: String, required: false },
     fechaBolivia: { type: String, required: false },
     fecha: { type: Date, required: true },
     hora: { type: String, required: true },
