@@ -117,7 +117,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     const reservaFormateada = {
       id: reservaGuardada?._id,
       codigo: reservaGuardada?.codigo,
-      numeroPedido: reservaGuardada?.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
+      //numeroPedido: reservaGuardada?.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
       clientName: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
       dateBolivia: reservaGuardada?.fechaBolivia,
@@ -159,7 +159,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
     const reservasFormateadas = reservas.map((reserva) => ({
       id: reserva._id,
       codigo: reserva.codigo,
-      numeroPedido: reserva.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
+      //numeroPedido: reserva.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
       clientName: reserva.clienteNombre,
       guestCount: reserva.cantidadPersonas,
       dateBolivia: reserva.fechaBolivia,

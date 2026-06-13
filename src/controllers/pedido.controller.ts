@@ -374,7 +374,8 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
     const mesaIds = mesasConCuentaSolicitada.map((mesa) => mesa._id)
 
     const filtroPedidos: any = {
-      estado: ESTADOS_PEDIDO.ENTREGADO,
+      // SOLUCIÓN: En lugar de exigir 'ENTREGADO', aceptamos cualquier pedido activo
+      estado: { $nin: [ESTADOS_PEDIDO.CERRADO, ESTADOS_PEDIDO.CANCELADO] },
       mesa: { $in: mesaIds }
     }
 
@@ -386,7 +387,7 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
       ]
     }
 
-    // 2. Buscamos pedidos entregados asociados a esas mesas
+    // 2. Buscamos pedidos asociados a esas mesas
     const pedidos = await Pedido.find(filtroPedidos)
       .populate('mesa', 'numero estado')
       .populate('usuario', 'nombre apellido')
