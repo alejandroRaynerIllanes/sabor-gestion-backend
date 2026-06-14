@@ -17,7 +17,7 @@ const PlatoSchema = new Schema(
     descripcion: { type: String, required: true },
     precio: { type: Number, required: true, min: 0 },
     imagenUrl: { type: String, default: '' },
-    imagenPublicId: { type: String, default: '' }, 
+    imagenPublicId: { type: String, default: '' },
     disponible: { type: Boolean, default: true },
     categoria: { type: Schema.Types.ObjectId, ref: 'Categoria', required: true },
     stock: { type: Number, required: true, default: 0, min: 0 } // ← Restricción min: 0 para evitar stocks negativos

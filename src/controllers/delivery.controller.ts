@@ -63,7 +63,7 @@ export const getDeliveryQueue = async (req: AuthRequest, res: Response): Promise
       estado: { $in: ['Pendiente_de_Aceptacion', 'Repartidor_Esperando', 'En_Transito'] }
     })
       .populate('detalles.plato', 'nombre precio')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
 
     if (pedidos.length > MAX_PEDIDOS_REPARTIDOR) {
       console.warn(`Repartidor ${repartidorId} supero el limite de pedidos activos.`)
@@ -105,10 +105,12 @@ export const acceptOrder = async (req: AuthRequest, res: Response): Promise<void
       { returnDocument: 'after' }
     )
       .populate('detalles.plato', 'nombre precio')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
 
     if (!pedido) {
-      res.status(404).json({ success: false, message: 'Pedido no encontrado o no asignado al repartidor' })
+      res
+        .status(404)
+        .json({ success: false, message: 'Pedido no encontrado o no asignado al repartidor' })
       return
     }
 
@@ -141,7 +143,9 @@ export const rejectOrder = async (req: AuthRequest, res: Response): Promise<void
     )
 
     if (!pedido) {
-      res.status(404).json({ success: false, message: 'Pedido no encontrado o no asignado al repartidor' })
+      res
+        .status(404)
+        .json({ success: false, message: 'Pedido no encontrado o no asignado al repartidor' })
       return
     }
 
@@ -183,10 +187,12 @@ export const updateOrderState = async (req: AuthRequest, res: Response): Promise
       { returnDocument: 'after' }
     )
       .populate('detalles.plato', 'nombre precio')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
 
     if (!pedido) {
-      res.status(404).json({ success: false, message: 'Pedido no encontrado o no asignado al repartidor' })
+      res
+        .status(404)
+        .json({ success: false, message: 'Pedido no encontrado o no asignado al repartidor' })
       return
     }
 
@@ -194,7 +200,10 @@ export const updateOrderState = async (req: AuthRequest, res: Response): Promise
       try {
         await procesarDescuentoPedido(String(pedido._id))
       } catch (inventarioError) {
-        console.error(`[Delivery] Error descontando inventario del pedido ${pedido._id}:`, inventarioError)
+        console.error(
+          `[Delivery] Error descontando inventario del pedido ${pedido._id}:`,
+          inventarioError
+        )
       }
     }
 

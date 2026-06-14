@@ -15,7 +15,7 @@ export interface IDetallePedido {
 const DetallePedidoSchema = new Schema<IDetallePedido>(
   {
     plato: { type: Schema.Types.ObjectId, ref: 'Plato', required: true },
-    nombrePlato: { type: String, default: 'Plato' }, 
+    nombrePlato: { type: String, default: 'Plato' },
     cantidad: { type: Number, required: true, min: 1 },
     precioUnitario: { type: Number, required: true },
     subtotal: { type: Number, required: true },
@@ -33,6 +33,7 @@ export interface IPedido extends Document {
   total: number
   mesa?: mongoose.Types.ObjectId
   usuario: mongoose.Types.ObjectId
+  usuarioModel?: string
   detalles: IDetallePedido[]
   qrUrl?: string
   // Campos para el cierre de caja y comprobante
@@ -44,7 +45,7 @@ export interface IPedido extends Document {
   clienteCI?: string
   clienteNIT?: string
   cajeroAsignado?: mongoose.Types.ObjectId
-  
+
   // <-- NUEVOS CAMPOS PARA DELIVERY -->
   metodoEntrega?: string
   repartidorId?: mongoose.Types.ObjectId
@@ -66,14 +67,28 @@ const PedidoSchema = new Schema(
       type: String,
       // Se fusionan los estados del restaurante local con los de seguimiento de delivery
       enum: [
-        'ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'CANCELADO', 'CERRADO', // Originales
-        'Pendiente_de_Aceptacion', 'En_Cocina', 'Repartidor_Esperando', 'En_Transito', 'Senal_Debil' // Delivery
+        'ABIERTO',
+        'EN_PREPARACION',
+        'ENTREGADO',
+        'CANCELADO',
+        'CERRADO', // Originales
+        'Pendiente_de_Aceptacion',
+        'En_Cocina',
+        'Repartidor_Esperando',
+        'En_Transito',
+        'Senal_Debil' // Delivery
       ],
       default: 'ABIERTO'
     },
     total: { type: Number, required: true, default: 0 },
     mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: false },
-    usuario: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
+    usuario: { type: Schema.Types.ObjectId, refPath: 'usuarioModel', required: true },
+    usuarioModel: {
+      type: String,
+      required: true,
+      enum: ['Usuario', 'Cliente'],
+      default: 'Usuario'
+    },
     detalles: [DetallePedidoSchema],
     qrUrl: { type: String, required: false },
 
@@ -85,7 +100,7 @@ const PedidoSchema = new Schema(
     },
     montoDescuento: { type: Number, default: 0 },
     montoPropina: { type: Number, default: 0 },
-    subtotalCierre: { type: Number, default: 0 }, 
+    subtotalCierre: { type: Number, default: 0 },
     clienteNombre: { type: String, required: false },
     clienteCI: { type: String, required: false },
     clienteNIT: { type: String, required: false },
@@ -99,19 +114,23 @@ const PedidoSchema = new Schema(
       enum: ['local', 'delivery'],
       default: 'local'
     },
-    repartidorId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Usuario', 
-      required: false 
+    repartidorId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Usuario',
+      required: false
     },
     coordenadasEntrega: {
-      lat: { 
-        type: Number, 
-        required: function(this: IPedido) { return this.metodoEntrega === 'delivery' } 
+      lat: {
+        type: Number,
+        required: function (this: IPedido) {
+          return this.metodoEntrega === 'delivery'
+        }
       },
-      lng: { 
-        type: Number, 
-        required: function(this: IPedido) { return this.metodoEntrega === 'delivery' } 
+      lng: {
+        type: Number,
+        required: function (this: IPedido) {
+          return this.metodoEntrega === 'delivery'
+        }
       }
     }
   },

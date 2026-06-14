@@ -25,7 +25,8 @@ export const agregarDireccionEntrega = async (req: CustomRequest, res: Response)
     if (!coordenadaValida(lat, lng)) {
       return res.status(400).json({
         success: false,
-        mensaje: 'Las coordenadas no pueden ser nulas, cero o estar fuera de rango. La geolocalizacion es obligatoria.'
+        mensaje:
+          'Las coordenadas no pueden ser nulas, cero o estar fuera de rango. La geolocalizacion es obligatoria.'
       })
     }
 

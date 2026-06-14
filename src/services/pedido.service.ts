@@ -63,7 +63,6 @@ export class PedidoService {
     pedidoId: string,
     nuevoEstado: string
   ): Promise<ResultadoActualizarEstado> {
-    
     // 1. Obtener el estado ANTERIOR del pedido para evitar el bug del bucle de inventario
     const pedidoAnterior = await Pedido.findById(pedidoId)
     if (!pedidoAnterior) {
@@ -71,8 +70,7 @@ export class PedidoService {
     }
 
     const yaEstabaListo =
-      pedidoAnterior.estado === ESTADOS_PEDIDO.ENTREGADO ||
-      pedidoAnterior.estado === 'Listos'
+      pedidoAnterior.estado === ESTADOS_PEDIDO.ENTREGADO || pedidoAnterior.estado === 'Listos'
 
     // 2. Actualizar estado en BD con populate completo
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
@@ -89,8 +87,7 @@ export class PedidoService {
     }
 
     // 3. Determinar si el nuevo estado activa la alerta "¡Listo!"
-    const esNuevoEstadoListo =
-      nuevoEstado === ESTADOS_PEDIDO.ENTREGADO || nuevoEstado === 'Listos'
+    const esNuevoEstadoListo = nuevoEstado === ESTADOS_PEDIDO.ENTREGADO || nuevoEstado === 'Listos'
 
     // 🔴 EL CANDADO PROTECTOR: Solo descuenta si es nuevo el estado "Listo"
     const disparaAlertaListo = esNuevoEstadoListo && !yaEstabaListo

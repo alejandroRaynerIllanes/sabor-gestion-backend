@@ -46,7 +46,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
     const pedidoPoblado = await Pedido.findById(nuevoPedido._id)
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
 
     // 3. AUTOMATIZACIÓN: Cambiar estado de la mesa a 'Ocupada'
     const mesaId = req.body.mesa
@@ -144,7 +144,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
 
     const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
       .populate('cajeroAsignado', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
       .sort({ createdAt: -1 })
@@ -170,7 +170,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
     await pedido.save()
 
     // NUEVO: Si fue un pedido de delivery, devolver el stock reservado de los Platos
-    const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido;
+    const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
     if (pedidoPlano.metodoEntrega === 'delivery' && Array.isArray(pedidoPlano.detalles)) {
       for (const item of pedidoPlano.detalles) {
         await Plato.findByIdAndUpdate(item.plato, {
@@ -221,8 +221,10 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
 
     // 1. Delegar toda la lógica de negocio al servicio
     //    (busca el pedido, actualiza estado, descuenta inventario si aplica)
-    const { pedidoActualizado, disparaAlertaListo } =
-      await PedidoService.actualizarEstadoService(String(id), String(estado))
+    const { pedidoActualizado, disparaAlertaListo } = await PedidoService.actualizarEstadoService(
+      String(id),
+      String(estado)
+    )
 
     // 2. WEBSOCKETS — responsabilidad del controlador (el servicio no conoce getIO)
     try {
@@ -266,7 +268,9 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
     }
-    res.status(500).json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message })
+    res
+      .status(500)
+      .json({ mensaje: 'Error al actualizar el estado del pedido', error: err.message })
   }
 }
 
@@ -322,7 +326,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
 
     if (!pedidoActualizado) {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
@@ -404,7 +408,7 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
     // 2. Buscamos pedidos asociados a esas mesas
     const pedidos = await Pedido.find(filtroPedidos)
       .populate('mesa', 'numero estado')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
       .populate('detalles.plato', 'nombre precio')
       .sort({ updatedAt: -1 })
 
@@ -463,7 +467,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
 
     const pedidoPoblado = await Pedido.findById(id)
       .populate('mesa', 'numero estado')
-      .populate('usuario', 'nombre apellido')
+      .populate('usuario', 'nombre apellido apellidos')
       .populate('detalles.plato', 'nombre precio')
 
     const payload = PedidoService.formatearPayloadCaja(pedidoPoblado, mesaActualizada)
@@ -560,7 +564,9 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       if (!cantidad || cantidad <= 0) {
         await session.abortTransaction()
         session.endSession()
-        res.status(400).json({ success: false, mensaje: 'Cada item debe tener una cantidad mayor a cero.' })
+        res
+          .status(400)
+          .json({ success: false, mensaje: 'Cada item debe tener una cantidad mayor a cero.' })
         return
       }
 
@@ -599,6 +605,7 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       _id: pedidoId,
       codigo: `PED-${String(pedidoId).slice(-4).toUpperCase()}`,
       usuario: req.usuario.id,
+      usuarioModel: 'Cliente',
       metodoEntrega: 'delivery',
       detalles: detallesFormateados,
       total: total || detallesFormateados.reduce((acc: number, cur: any) => acc + cur.subtotal, 0),
@@ -645,6 +652,8 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
     await session.abortTransaction()
     session.endSession()
     const err = error as Error
-    res.status(500).json({ success: false, mensaje: 'Error procesando checkout', error: err.message })
+    res
+      .status(500)
+      .json({ success: false, mensaje: 'Error procesando checkout', error: err.message })
   }
 }

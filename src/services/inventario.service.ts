@@ -57,12 +57,16 @@ export async function procesarDescuentoPedido(pedidoId: string): Promise<void> {
   for (const detalle of pedido.detalles) {
     const platoId = detalle.plato as unknown as mongoose.Types.ObjectId
     const receta = await Receta.findOne({ plato: platoId }).populate('ingredientes.ingrediente')
-    
+
     if (!receta) continue
 
     for (const item of receta.ingredientes) {
       const ingDoc = item.ingrediente as any
-      if (!ingDoc || !ingDoc.nombre || debeExcluirIngrediente(detalle.observacion || '', ingDoc.nombre)) {
+      if (
+        !ingDoc ||
+        !ingDoc.nombre ||
+        debeExcluirIngrediente(detalle.observacion || '', ingDoc.nombre)
+      ) {
         continue
       }
 
@@ -76,7 +80,6 @@ export async function procesarDescuentoPedido(pedidoId: string): Promise<void> {
 
   // 2. Descontar solo la diferencia consultando el historial de movimientos
   for (const [idStr, cantidadTotalNecesaria] of totalRequerido.entries()) {
-    
     const movimientosPrevios = await MovimientoInventario.find({
       ingrediente: idStr,
       descripcion: `Consumo por pedido ${pedido.codigo || pedidoId}`,
@@ -128,6 +131,8 @@ export async function procesarDescuentoPedido(pedidoId: string): Promise<void> {
       }
     }
   }
-  
-  console.log(`[Inventario] ✅ Descuento inteligente completado para pedido ${pedido.codigo || pedidoId}`)
+
+  console.log(
+    `[Inventario] ✅ Descuento inteligente completado para pedido ${pedido.codigo || pedidoId}`
+  )
 }

@@ -95,22 +95,23 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       clienteNombre: nombreCliente,
       cantidadPersonas,
       mesa: mesaId,
-      usuario: usuarioId
+      usuario: usuarioId,
+      usuarioModel: req.usuario?.rol === 'Cliente' ? 'Cliente' : 'Usuario'
     })
 
     await nuevaReserva.save()
 
     // 1. Cambio de estado instantáneo: Pasamos a 'Reservada' si actualmente está 'Libre'
-    let cambiarAReservada = false;
+    let cambiarAReservada = false
     if (mesaEncontrada.estado === 'Libre') {
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' });
-      cambiarAReservada = true;
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+      cambiarAReservada = true
     }
 
     // 2. Lógica de clonD: Hacemos el populate para tener toda la info
     const reservaGuardada = await Reserva.findById(nuevaReserva._id)
       .populate('mesa', 'numero ubicacion capacidad estado')
-      .populate('usuario', 'nombre apellido email rol')
+      .populate('usuario', 'nombre apellido apellidos email rol')
 
     // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida JSON
     const reservaFormateada = {
@@ -153,7 +154,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
   try {
     const reservas = await Reserva.find()
       .populate('mesa', 'numero ubicacion capacidad estado')
-      .populate('usuario', 'nombre apellido email rol')
+      .populate('usuario', 'nombre apellido apellidos email rol')
       .sort({ createdAt: -1 })
 
     // RESOLUCIÓN: Devolvemos tanto 'codigo' como 'numeroPedido' en el listado

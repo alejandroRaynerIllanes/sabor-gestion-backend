@@ -1,11 +1,7 @@
 import Pedido from '../models/Pedido'
 import Usuario from '../models/Usuario'
 
-const ESTADOS_ACTIVOS_DELIVERY = [
-  'Pendiente_de_Aceptacion',
-  'Repartidor_Esperando',
-  'En_Transito'
-]
+const ESTADOS_ACTIVOS_DELIVERY = ['Pendiente_de_Aceptacion', 'Repartidor_Esperando', 'En_Transito']
 
 export const MAX_PEDIDOS_REPARTIDOR = 5
 

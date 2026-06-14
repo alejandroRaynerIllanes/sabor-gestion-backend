@@ -6,7 +6,8 @@ const options: swaggerJSDoc.Options = {
     info: {
       title: 'API de Sabor & Gestión',
       version: '1.0.0',
-      description: 'Documentación técnica del comportamiento del sistema backend. Detalla las validaciones de datos, flujos de estado y operaciones en la base de datos MongoDB.'
+      description:
+        'Documentación técnica del comportamiento del sistema backend. Detalla las validaciones de datos, flujos de estado y operaciones en la base de datos MongoDB.'
     },
     servers: [
       {
@@ -33,7 +34,10 @@ const options: swaggerJSDoc.Options = {
             apellido: { type: 'string' },
             ci: { type: 'string', description: 'Cédula de identidad única.' },
             email: { type: 'string', description: 'Correo electrónico único.' },
-            rol: { type: 'string', enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero', 'Cliente'] },
+            rol: {
+              type: 'string',
+              enum: ['Administrador', 'Mesero', 'Cocinero', 'Cajero', 'Cliente']
+            },
             estado: { type: 'boolean', default: true },
             verificado: { type: 'boolean', default: true }
           }
@@ -53,7 +57,16 @@ const options: swaggerJSDoc.Options = {
         },
         Reserva: {
           type: 'object',
-          required: ['codigo', 'pedidoId', 'fecha', 'hora', 'clienteNombre', 'cantidadPersonas', 'mesa', 'usuario'],
+          required: [
+            'codigo',
+            'pedidoId',
+            'fecha',
+            'hora',
+            'clienteNombre',
+            'cantidadPersonas',
+            'mesa',
+            'usuario'
+          ],
           properties: {
             _id: { type: 'string' },
             codigo: { type: 'string' },
@@ -85,7 +98,11 @@ const options: swaggerJSDoc.Options = {
             _id: { type: 'string' },
             codigo: { type: 'string' },
             fechaHora: { type: 'string', format: 'date-time' },
-            estado: { type: 'string', enum: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'CANCELADO', 'CERRADO'], default: 'ABIERTO' },
+            estado: {
+              type: 'string',
+              enum: ['ABIERTO', 'EN_PREPARACION', 'ENTREGADO', 'CANCELADO', 'CERRADO'],
+              default: 'ABIERTO'
+            },
             total: { type: 'number' },
             mesa: { type: 'string', description: 'ObjectId de la Mesa (Opcional).' },
             usuario: { type: 'string', description: 'ObjectId del Usuario creador.' },

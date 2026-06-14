@@ -67,8 +67,8 @@ export const registrarEntradaStock = async (req: Request, res: Response): Promis
     ingrediente.estado = nuevoEstado
     await ingrediente.save({ session })
 
-    const descripcionMovimiento = costo 
-      ? `Entrada manual de stock. Costo asociado: Bs. ${costo}` 
+    const descripcionMovimiento = costo
+      ? `Entrada manual de stock. Costo asociado: Bs. ${costo}`
       : 'Entrada manual de stock'
 
     const [nuevoMovimiento] = await MovimientoInventario.create(
@@ -225,7 +225,7 @@ export const obtenerRecetas = async (req: Request, res: Response): Promise<void>
     const recetas = await Receta.find()
       .populate('plato', 'nombre precio')
       .populate('ingredientes.ingrediente', 'nombre unidadMedida stockActual')
-    
+
     res.status(200).json(recetas)
   } catch (error) {
     const err = error as Error
@@ -238,7 +238,9 @@ export const guardarReceta = async (req: Request, res: Response): Promise<void> 
     const { plato, ingredientes } = req.body
 
     if (!plato || !ingredientes || !Array.isArray(ingredientes)) {
-      res.status(400).json({ mensaje: 'Faltan datos: se requiere el ID del plato y un arreglo de ingredientes.' })
+      res.status(400).json({
+        mensaje: 'Faltan datos: se requiere el ID del plato y un arreglo de ingredientes.'
+      })
       return
     }
 
@@ -254,17 +256,20 @@ export const guardarReceta = async (req: Request, res: Response): Promise<void> 
       receta.ingredientes = ingredientes
       await receta.save()
 
-      try { getIO().emit('inventario:actualizado') } catch (e) {}
+      try {
+        getIO().emit('inventario:actualizado')
+      } catch (e) {}
 
       res.status(200).json({ mensaje: 'Receta actualizada exitosamente', receta })
     } else {
       receta = await Receta.create({ plato, ingredientes })
 
-      try { getIO().emit('inventario:actualizado') } catch (e) {}
+      try {
+        getIO().emit('inventario:actualizado')
+      } catch (e) {}
 
       res.status(201).json({ mensaje: 'Receta creada exitosamente', receta })
     }
-
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al guardar la receta', error: err.message })
@@ -301,7 +306,7 @@ export const obtenerAlertas = async (req: Request, res: Response): Promise<void>
     const alertas = await AlertaStock.find({ estado: 'Pendiente' })
       .populate('ingrediente', 'nombre unidadMedida stockActual stockMinimo')
       .sort({ createdAt: -1 })
-    
+
     res.status(200).json(alertas)
   } catch (error) {
     const err = error as Error

@@ -9,7 +9,11 @@ export const startSignalMonitor = () => {
 
     for (const [orderId, lastPing] of activeDeliveries.entries()) {
       if (now - lastPing > TIMEOUT_MS) {
-        const pedido = await Pedido.findByIdAndUpdate(orderId, { estado: 'Senal_Debil' }, { new: true })
+        const pedido = await Pedido.findByIdAndUpdate(
+          orderId,
+          { estado: 'Senal_Debil' },
+          { new: true }
+        )
 
         try {
           const io = getIO()
