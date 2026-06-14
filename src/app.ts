@@ -18,8 +18,6 @@ import dashboardRoutes from './routes/dashboard.routes'
 import uploadRouters from './routes/upload.routes' // <-- Sin el .js
 import inventarioRoutes from './routes/inventario.routes'
 
-import swaggerUi from 'swagger-ui-express'
-import { swaggerSpec, swaggerUiOptions } from './configs/swagger'
 import deliveryRoutes from './routes/delivery.routes'
 import direccionRoutes from './routes/direccion.routes'
 
@@ -61,7 +59,6 @@ app.use('/api/pagos', pagoRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/inventario', inventarioRoutes)
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions as any))
 
 app.use('/api/delivery', deliveryRoutes)
 app.use('/api/direcciones', direccionRoutes)

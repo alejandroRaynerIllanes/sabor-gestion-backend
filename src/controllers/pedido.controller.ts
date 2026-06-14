@@ -2,14 +2,14 @@ import { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
 import Mesa from '../models/Mesa'
-import Plato from '../models/Plato' // <-- AÑADIDO para el checkout
+import Plato from '../models/Plato'
 import { getIO } from '../socket/socket'
 import CierreCaja from '../models/CierreCaja'
 import Reserva from '../models/Reserva'
 import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
 import { PedidoService } from '../services/pedido.service'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
-import { CustomRequest } from '../middlewares/auth.middleware' // <-- AÑADIDO para leer req.usuario
+import { CustomRequest } from '../middlewares/auth.middleware'
 import { asignarRepartidorDisponible } from '../services/delivery.service'
 
 // procesarDescuentoPedido es invocado internamente por PedidoService.actualizarEstadoService
@@ -65,7 +65,6 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
 
       // Notificar a todos los meseros que la mesa ahora está ocupada (se pone roja)
       if (mesaActualizada) {
-        // Usamos un mapeo simple para el socket
         io.emit('mesas:updated', {
           id: mesaActualizada._id.toString(),
           status: ESTADOS_MESA.OCUPADA,
@@ -306,7 +305,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       updates.estado = ESTADOS_PEDIDO.ABIERTO
     }
 
-    // Guardar los campos de la pre-cuenta (permitido dinámicamente si el modelo usa strict: false o si están definidos)
+    // Guardar los campos de la pre-cuenta
     if (clienteNombre !== undefined) updates.clienteNombre = clienteNombre
     if (clienteCI !== undefined) updates.clienteCI = clienteCI
     if (clienteNIT !== undefined) updates.clienteNIT = clienteNIT
@@ -319,7 +318,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
       { $set: updates },
-      { returnDocument: 'after' } // SOLUCIÓN: Activamos de nuevo la seguridad estricta de Mongoose porque los campos ya están en el modelo
+      { returnDocument: 'after' }
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
@@ -503,15 +502,32 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
 
 // <-- NUEVA FUNCIÓN: Checkout para Pedidos Delivery -->
 export const checkoutPedido = async (req: CustomRequest, res: Response): Promise<void> => {
+  const session = await mongoose.startSession()
+  session.startTransaction()
+
   try {
-    const { items, metodoPago, coordenadasEntrega, total, direccionEntrega, referenciaEntrega, costoDelivery, clienteTelefono, clienteNombre } = req.body
+    const {
+      items,
+      metodoPago,
+      coordenadasEntrega,
+      total,
+      direccionEntrega,
+      referenciaEntrega,
+      costoDelivery,
+      clienteTelefono,
+      clienteNombre
+    } = req.body
 
     if (!req.usuario?.id) {
+      await session.abortTransaction()
+      session.endSession()
       res.status(401).json({ success: false, mensaje: 'Usuario no autenticado' })
       return
     }
 
     if (!Array.isArray(items) || items.length === 0) {
+      await session.abortTransaction()
+      session.endSession()
       res.status(400).json({ success: false, mensaje: 'El checkout requiere al menos un item.' })
       return
     }
@@ -529,6 +545,8 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       lng <= 180
 
     if (!coordenadasValidas) {
+      await session.abortTransaction()
+      session.endSession()
       res.status(400).json({
         success: false,
         mensaje: 'Las coordenadas de entrega son obligatorias y deben ser validas.'
@@ -536,32 +554,36 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       return
     }
 
-    // 1. Verificacion sincrona de stock de platos para bloquear checkout sin disponibilidad.
+    // 1. Verificacion y reserva de stock DENTRO de la transacción (lectura + escritura atómica).
     for (const item of items) {
       const cantidad = Number(item.cantidad)
       if (!cantidad || cantidad <= 0) {
+        await session.abortTransaction()
+        session.endSession()
         res.status(400).json({ success: false, mensaje: 'Cada item debe tener una cantidad mayor a cero.' })
         return
       }
 
-      const plato = await Plato.findById(item.platoId || item.plato)
+      const plato = await Plato.findById(item.platoId || item.plato).session(session)
       if (!plato || plato.stock < cantidad) {
+        await session.abortTransaction()
+        session.endSession()
         res.status(400).json({
           success: false,
           mensaje: `Stock insuficiente para el plato: ${plato?.nombre || 'Desconocido'}`
         })
         return
       }
+
+      // Reservar stock atómicamente dentro de la sesión
+      await Plato.findByIdAndUpdate(
+        item.platoId || item.plato,
+        { $inc: { stock: -cantidad } },
+        { session }
+      )
     }
 
-    // 2. Reservar stock de platos para evitar sobreventa durante el delivery.
-    for (const item of items) {
-      await Plato.findByIdAndUpdate(item.platoId || item.plato, {
-        $inc: { stock: -Number(item.cantidad) }
-      })
-    }
-
-    // 3. Generar documento del pedido cumpliendo las reglas del Schema IPedido.
+    // 2. Generar documento del pedido cumpliendo las reglas del Schema IPedido.
     const pedidoId = new mongoose.Types.ObjectId()
     const fechaHora = obtenerFechaBolivia()
 
@@ -592,8 +614,14 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       fechaHora
     })
 
-    await nuevoPedido.save()
+    // 3. Guardar el pedido dentro de la transacción
+    await nuevoPedido.save({ session })
 
+    // 4. Confirmar todos los cambios de forma atómica
+    await session.commitTransaction()
+    session.endSession()
+
+    // 5. Asignar repartidor DESPUÉS del commit (operación independiente, no crítica para la atomicidad)
     const pedidoAsignado = await asignarRepartidorDisponible(String(nuevoPedido._id))
     const pedidoRespuesta = pedidoAsignado || nuevoPedido
 
@@ -613,6 +641,9 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       asignado: Boolean(pedidoAsignado)
     })
   } catch (error) {
+    // Revertir TODOS los cambios: stock de platos y pedido se deshacen juntos
+    await session.abortTransaction()
+    session.endSession()
     const err = error as Error
     res.status(500).json({ success: false, mensaje: 'Error procesando checkout', error: err.message })
   }
