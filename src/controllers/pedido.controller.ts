@@ -53,7 +53,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
     const mesaActualizada = await Mesa.findByIdAndUpdate(
       mesaId,
       { estado: ESTADOS_MESA.OCUPADA },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('ubicacionId', 'nombre')
 
     // 4. WEBSOCKETS: Notificar a los actores del sistema
@@ -193,7 +193,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
       const mesaLiberada = await Mesa.findByIdAndUpdate(
         pedido.mesa,
         { estado: nuevoEstado },
-        { new: true }
+        { returnDocument: 'after' }
       )
 
       // Avisar por WebSocket que la mesa vuelve a estar disponible (verde)
@@ -319,7 +319,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true } // SOLUCIÓN: Activamos de nuevo la seguridad estricta de Mongoose porque los campos ya están en el modelo
+      { returnDocument: 'after' } // SOLUCIÓN: Activamos de nuevo la seguridad estricta de Mongoose porque los campos ya están en el modelo
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
@@ -454,7 +454,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
     const mesaActualizada = await Mesa.findByIdAndUpdate(
       pedido.mesa,
       { estado: ESTADOS_MESA.CUENTA_SOLICITADA },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!mesaActualizada) {

@@ -294,7 +294,7 @@ export const actualizarMesa = async (req: Request, res: Response): Promise<void>
     if (body.status !== undefined) update.estado = estadoFrontendToBackend(body.status)
     if (body.type !== undefined) update.tipo = body.type
 
-    const mesaActualizada = (await Mesa.findByIdAndUpdate(id, update, { new: true }).populate(
+    const mesaActualizada = (await Mesa.findByIdAndUpdate(id, update, { returnDocument: 'after' }).populate(
       'ubicacionId',
       'nombre'
     )) as MesaPoblada | null
@@ -325,7 +325,7 @@ export const actualizarEstadoMesa = async (req: Request, res: Response): Promise
     const mesaActualizada = (await Mesa.findByIdAndUpdate(
       id,
       { estado: backendStatus },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('ubicacionId', 'nombre')) as MesaPoblada | null
 
     if (!mesaActualizada) {

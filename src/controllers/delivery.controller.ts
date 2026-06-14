@@ -40,7 +40,7 @@ export const updateDeliveryStatus = async (req: AuthRequest, res: Response): Pro
     const repartidor = await Usuario.findByIdAndUpdate(
       repartidorId,
       { isAvailable: Boolean(isAvailable) },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     res.status(200).json({ success: true, isAvailable: repartidor?.isAvailable })
@@ -102,7 +102,7 @@ export const acceptOrder = async (req: AuthRequest, res: Response): Promise<void
         estado: 'Pendiente_de_Aceptacion'
       },
       { estado: 'Repartidor_Esperando' },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('usuario', 'nombre apellido')
@@ -137,7 +137,7 @@ export const rejectOrder = async (req: AuthRequest, res: Response): Promise<void
         estado: 'Pendiente_de_Aceptacion'
       },
       { $unset: { repartidorId: '' } },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!pedido) {
@@ -180,7 +180,7 @@ export const updateOrderState = async (req: AuthRequest, res: Response): Promise
     const pedido = await Pedido.findOneAndUpdate(
       { _id: id, repartidorId },
       { estado },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('usuario', 'nombre apellido')

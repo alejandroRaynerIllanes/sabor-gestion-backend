@@ -175,7 +175,7 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     const usuarioActualizado: any = await Usuario.findByIdAndUpdate(
       id,
       { $set: datosActualizados },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .select('-password')
       .lean()
@@ -236,7 +236,7 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
       id,
       { estado: estado },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .select('-password')
       .lean()

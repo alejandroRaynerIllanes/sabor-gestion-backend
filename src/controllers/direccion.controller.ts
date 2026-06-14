@@ -45,7 +45,7 @@ export const agregarDireccionEntrega = async (req: CustomRequest, res: Response)
           }
         }
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!usuarioActualizado) {
@@ -101,7 +101,7 @@ export const eliminarDireccionEntrega = async (req: CustomRequest, res: Response
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
       clienteId,
       { $pull: { direccionesDelivery: { _id: id } } },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!usuarioActualizado) {

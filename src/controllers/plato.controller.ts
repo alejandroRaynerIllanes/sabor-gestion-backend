@@ -84,7 +84,7 @@ export const actualizarPlato = async (req: Request, res: Response) => {
     const platoActualizado = await Plato.findByIdAndUpdate(
       req.params.id,
       { ...resto, imagenUrl, imagenPublicId },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     )
 
     res.status(200).json(platoActualizado)

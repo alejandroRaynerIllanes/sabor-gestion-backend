@@ -78,7 +78,7 @@ export class PedidoService {
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       pedidoId,
       { estado: nuevoEstado },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .populate('mesa', 'numero')
       .populate('detalles.plato', 'nombre precio')
