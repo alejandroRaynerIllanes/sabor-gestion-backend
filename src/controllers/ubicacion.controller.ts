@@ -83,7 +83,7 @@ export const actualizarUbicacion = async (req: Request, res: Response) => {
     const actualizada = await Ubicacion.findByIdAndUpdate(
       id,
       { nombre: finalName, name: finalName },
-      { new: true }
+      { returnDocument: 'after' }
     )
     if (!actualizada) return res.status(404).json({ mensaje: 'Ubicación no encontrada' })
 

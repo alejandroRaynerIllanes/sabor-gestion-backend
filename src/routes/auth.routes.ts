@@ -10,7 +10,8 @@ import {
 const router = Router()
 
 router.post('/login', loginUsuario)
-router.post('/register', registrarUsuario) // Mantenemos la de Jairo
+router.post('/register', registrarUsuario) // Mantenemos la de Jairo por compatibilidad
+router.post('/registro', registrarUsuario) // <-- Ruta correcta que consume el nuevo Frontend
 router.post('/verificar-codigo', verificarCodigo)
 router.post('/reenviar-codigo', reenviarCodigo)
 

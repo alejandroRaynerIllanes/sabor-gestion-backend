@@ -43,7 +43,7 @@ export async function asignarRepartidorDisponible(pedidoId: string): Promise<any
       repartidorId: repartidor._id,
       estado: 'Pendiente_de_Aceptacion'
     },
-    { new: true }
+    { returnDocument: 'after' }
   )
     .populate('detalles.plato', 'nombre precio')
     .populate('usuario', 'nombre apellido')

@@ -53,7 +53,7 @@ export const crearPedido = async (req: Request, res: Response): Promise<void> =>
     const mesaActualizada = await Mesa.findByIdAndUpdate(
       mesaId,
       { estado: ESTADOS_MESA.OCUPADA },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('ubicacionId', 'nombre')
 
     // 4. WEBSOCKETS: Notificar a los actores del sistema
@@ -170,6 +170,16 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
     pedido.estado = ESTADOS_PEDIDO.CANCELADO
     await pedido.save()
 
+    // NUEVO: Si fue un pedido de delivery, devolver el stock reservado de los Platos
+    const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido;
+    if (pedidoPlano.metodoEntrega === 'delivery' && Array.isArray(pedidoPlano.detalles)) {
+      for (const item of pedidoPlano.detalles) {
+        await Plato.findByIdAndUpdate(item.plato, {
+          $inc: { stock: Number(item.cantidad) } // Sumamos de vuelta la cantidad
+        })
+      }
+    }
+
     // Si el pedido tenía una mesa asignada, la liberamos
     if (pedido.mesa) {
       const inicioHoy = obtenerFechaBolivia()
@@ -183,7 +193,7 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
       const mesaLiberada = await Mesa.findByIdAndUpdate(
         pedido.mesa,
         { estado: nuevoEstado },
-        { new: true }
+        { returnDocument: 'after' }
       )
 
       // Avisar por WebSocket que la mesa vuelve a estar disponible (verde)
@@ -274,13 +284,18 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       cajeroAsignado,
       montoDescuento,
       montoPropina,
-      subtotalCierre
+      subtotalCierre,
+      repartidorId,
+      estado
     } = req.body
 
     const pedidoAnterior = await Pedido.findById(id)
     const updates: any = {}
     if (total !== undefined) updates.total = total
     if (detalles !== undefined) updates.detalles = detalles
+
+    if (repartidorId !== undefined) updates.repartidorId = repartidorId
+    if (estado !== undefined) updates.estado = estado
 
     // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
     if (
@@ -304,7 +319,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true } // SOLUCIÓN: Activamos de nuevo la seguridad estricta de Mongoose porque los campos ya están en el modelo
+      { returnDocument: 'after' } // SOLUCIÓN: Activamos de nuevo la seguridad estricta de Mongoose porque los campos ya están en el modelo
     )
       .populate('detalles.plato', 'nombre precio')
       .populate('mesa', 'numero')
@@ -439,7 +454,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
     const mesaActualizada = await Mesa.findByIdAndUpdate(
       pedido.mesa,
       { estado: ESTADOS_MESA.CUENTA_SOLICITADA },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!mesaActualizada) {
@@ -489,7 +504,7 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
 // <-- NUEVA FUNCIÓN: Checkout para Pedidos Delivery -->
 export const checkoutPedido = async (req: CustomRequest, res: Response): Promise<void> => {
   try {
-    const { items, metodoPago, coordenadasEntrega, total } = req.body
+    const { items, metodoPago, coordenadasEntrega, total, direccionEntrega, referenciaEntrega, costoDelivery, clienteTelefono, clienteNombre } = req.body
 
     if (!req.usuario?.id) {
       res.status(401).json({ success: false, mensaje: 'Usuario no autenticado' })
@@ -568,6 +583,11 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       metodoPago: metodoPago || 'Efectivo',
       estado: 'Pendiente_de_Aceptacion',
       coordenadasEntrega: { lat, lng },
+      direccionEntrega,
+      referenciaEntrega,
+      costoDelivery,
+      clienteTelefono,
+      clienteNombre,
       fechaHoraBolivia: formatearFechaBolivia(fechaHora),
       fechaHora
     })

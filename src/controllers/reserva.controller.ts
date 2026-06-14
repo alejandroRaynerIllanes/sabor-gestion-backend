@@ -17,7 +17,7 @@ const formatearFechaReservaBolivia = (fechaReserva: string, horaReserva: string)
 
 export const crearReserva = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
-    const { mesa, tableId, date, fecha, time, hora, clientName, guestCount, vip } = req.body
+    const { mesa, tableId, date, fecha, time, hora, clientName, guestCount } = req.body
 
     const mesaId = mesa || tableId
     const fechaReserva = date || fecha
@@ -77,7 +77,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     const contadorDoc: any = await Contador.findOneAndUpdate(
       { nombre_secuencia: 'reservas_restaurante' },
       { $inc: { secuencia: 1 } },
-      { new: true, upsert: true } // Si no existe, lo crea y le pone 1
+      { returnDocument: 'after', upsert: true } // Si no existe, lo crea y le pone 1
     )
 
     const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
@@ -94,7 +94,6 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       hora: horaReserva,
       clienteNombre: nombreCliente,
       cantidadPersonas,
-      vip: Boolean(vip),
       mesa: mesaId,
       usuario: usuarioId
     })
@@ -116,14 +115,16 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida JSON
     const reservaFormateada = {
       id: reservaGuardada?._id,
+      _id: reservaGuardada?._id,
       codigo: reservaGuardada?.codigo,
-      //numeroPedido: reservaGuardada?.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
       clientName: reservaGuardada?.clienteNombre,
+      clienteNombre: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
+      cantidadPersonas: reservaGuardada?.cantidadPersonas,
       dateBolivia: reservaGuardada?.fechaBolivia,
       date: reservaGuardada?.fecha,
       time: reservaGuardada?.hora,
-      vip: reservaGuardada?.vip,
+      startTime: reservaGuardada?.hora,
       mesa: reservaGuardada?.mesa,
       usuario: reservaGuardada?.usuario,
       createdAt: reservaGuardada?.createdAt
@@ -165,7 +166,6 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
       dateBolivia: reserva.fechaBolivia,
       date: reserva.fecha,
       time: reserva.hora,
-      vip: reserva.vip,
       mesa: reserva.mesa,
       usuario: reserva.usuario,
       createdAt: reserva.createdAt

@@ -279,6 +279,18 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
       `
     })
 
+    // Cargo VIP
+    if (ped.mesa?.tipo === 'vip' || ped.mesa?.type === 'vip') {
+      itemsHtml += `
+        <tr style="background-color: #fffbeb;">
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; color: #b45309;">1</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; color: #b45309; font-weight: bold;">Cargo Mesa VIP</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; text-align: right; color: #b45309;">100.00</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; text-align: right; color: #b45309;">100.00</td>
+        </tr>
+      `
+    }
+
     // 2. Diseño del Ticket estilo "Impresora"
     const htmlDelRecibo = `
         <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 420px; margin: auto; padding: 30px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff; color: #374151; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
