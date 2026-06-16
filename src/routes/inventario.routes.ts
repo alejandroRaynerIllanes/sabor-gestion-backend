@@ -1,8 +1,8 @@
 // src/routes/inventario.routes.ts
 import { Router } from 'express'
-import { 
-  obtenerEstadoInventario, 
-  registrarEntradaStock, 
+import {
+  obtenerEstadoInventario,
+  registrarEntradaStock,
   crearIngrediente,
   actualizarIngrediente,
   eliminarIngrediente,
@@ -30,7 +30,6 @@ router.post('/ingredientes', verificarToken, soloAdmins, crearIngrediente)
 router.put('/ingredientes/:id', verificarToken, soloAdmins, actualizarIngrediente)
 router.delete('/ingredientes/:id', verificarToken, soloAdmins, eliminarIngrediente)
 
-
 // ─── RUTAS PARA RECETAS (ESCANDALLOS) ────────────────────────────────────────
 
 // GET: Cocineros y Admins pueden ver la lista de recetas
@@ -41,7 +40,6 @@ router.post('/recetas', verificarToken, soloAdmins, guardarReceta)
 
 // DELETE: Eliminar una receta existente (Solo admins)
 router.delete('/recetas/:id', verificarToken, soloAdmins, eliminarReceta)
-
 
 // ─── RUTAS PARA ALERTAS DE STOCK ─────────────────────────────────────────────
 

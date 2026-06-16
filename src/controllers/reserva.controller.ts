@@ -17,7 +17,7 @@ const formatearFechaReservaBolivia = (fechaReserva: string, horaReserva: string)
 
 export const crearReserva = async (req: CustomRequest, res: Response): Promise<any> => {
   try {
-    const { mesa, tableId, date, fecha, time, hora, clientName, guestCount, vip } = req.body
+    const { mesa, tableId, date, fecha, time, hora, clientName, guestCount } = req.body
 
     const mesaId = mesa || tableId
     const fechaReserva = date || fecha
@@ -77,7 +77,7 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
     const contadorDoc: any = await Contador.findOneAndUpdate(
       { nombre_secuencia: 'reservas_restaurante' },
       { $inc: { secuencia: 1 } },
-      { new: true, upsert: true } // Si no existe, lo crea y le pone 1
+      { returnDocument: 'after', upsert: true } // Si no existe, lo crea y le pone 1
     )
 
     const elPedidoIdFormateado = `Pedido ${contadorDoc.secuencia}`
@@ -94,36 +94,38 @@ export const crearReserva = async (req: CustomRequest, res: Response): Promise<a
       hora: horaReserva,
       clienteNombre: nombreCliente,
       cantidadPersonas,
-      vip: Boolean(vip),
       mesa: mesaId,
-      usuario: usuarioId
+      usuario: usuarioId,
+      usuarioModel: req.usuario?.rol === 'Cliente' ? 'Cliente' : 'Usuario'
     })
 
     await nuevaReserva.save()
 
     // 1. Cambio de estado instantáneo: Pasamos a 'Reservada' si actualmente está 'Libre'
-    let cambiarAReservada = false;
+    let cambiarAReservada = false
     if (mesaEncontrada.estado === 'Libre') {
-      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' });
-      cambiarAReservada = true;
+      await Mesa.findByIdAndUpdate(mesaId, { estado: 'Reservada' })
+      cambiarAReservada = true
     }
 
     // 2. Lógica de clonD: Hacemos el populate para tener toda la info
     const reservaGuardada = await Reserva.findById(nuevaReserva._id)
       .populate('mesa', 'numero ubicacion capacidad estado')
-      .populate('usuario', 'nombre apellido email rol')
+      .populate('usuario', 'nombre apellido apellidos email rol')
 
     // RESOLUCIÓN: Agregamos tanto 'codigo' como 'numeroPedido' en la salida JSON
     const reservaFormateada = {
       id: reservaGuardada?._id,
+      _id: reservaGuardada?._id,
       codigo: reservaGuardada?.codigo,
-      //numeroPedido: reservaGuardada?.pedidoId, // <--- 🛠️ RESTAURADO PARA EL FRONTEND
       clientName: reservaGuardada?.clienteNombre,
+      clienteNombre: reservaGuardada?.clienteNombre,
       guestCount: reservaGuardada?.cantidadPersonas,
+      cantidadPersonas: reservaGuardada?.cantidadPersonas,
       dateBolivia: reservaGuardada?.fechaBolivia,
       date: reservaGuardada?.fecha,
       time: reservaGuardada?.hora,
-      vip: reservaGuardada?.vip,
+      startTime: reservaGuardada?.hora,
       mesa: reservaGuardada?.mesa,
       usuario: reservaGuardada?.usuario,
       createdAt: reservaGuardada?.createdAt
@@ -152,7 +154,7 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
   try {
     const reservas = await Reserva.find()
       .populate('mesa', 'numero ubicacion capacidad estado')
-      .populate('usuario', 'nombre apellido email rol')
+      .populate('usuario', 'nombre apellido apellidos email rol')
       .sort({ createdAt: -1 })
 
     // RESOLUCIÓN: Devolvemos tanto 'codigo' como 'numeroPedido' en el listado
@@ -165,7 +167,6 @@ export const obtenerReservas = async (req: CustomRequest, res: Response): Promis
       dateBolivia: reserva.fechaBolivia,
       date: reserva.fecha,
       time: reserva.hora,
-      vip: reserva.vip,
       mesa: reserva.mesa,
       usuario: reserva.usuario,
       createdAt: reserva.createdAt

@@ -94,8 +94,8 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
 
     const fechaEnvioCaja = obtenerFechaBolivia()
     const fechaPago = obtenerFechaBolivia()
-    const momentoExacto = obtenerFechaBolivia();
-    const codigoDelPedido = ped.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`;
+    const momentoExacto = obtenerFechaBolivia()
+    const codigoDelPedido = ped.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`
 
     // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
     // Separamos la lógica contable y creamos el registro financiero puro
@@ -278,6 +278,18 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
         </tr>
       `
     })
+
+    // Cargo VIP
+    if (ped.mesa?.tipo === 'vip' || ped.mesa?.type === 'vip') {
+      itemsHtml += `
+        <tr style="background-color: #fffbeb;">
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; color: #b45309;">1</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; color: #b45309; font-weight: bold;">Cargo Mesa VIP</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; text-align: right; color: #b45309;">100.00</td>
+          <td style="padding: 6px 0; border-bottom: 1px solid #fce7f3; text-align: right; color: #b45309;">100.00</td>
+        </tr>
+      `
+    }
 
     // 2. Diseño del Ticket estilo "Impresora"
     const htmlDelRecibo = `

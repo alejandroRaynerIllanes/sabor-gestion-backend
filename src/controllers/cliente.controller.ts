@@ -1,0 +1,91 @@
+import { Request, Response } from 'express'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import Cliente from '../models/Cliente'
+
+export const registrarCliente = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nombre, apellidos, apellido, email, password, telefono, direccion } = req.body
+
+    // Si envían "apellido" en vez de "apellidos", lo mapeamos
+    const apellidosFinal = apellidos || apellido
+
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(password, salt)
+
+    const nuevoCliente = new Cliente({
+      nombre,
+      apellidos: apellidosFinal,
+      email,
+      password: hashedPassword,
+      telefono,
+      direccion
+    })
+
+    await nuevoCliente.save()
+
+    const clienteRespuesta = nuevoCliente.toObject()
+    delete (clienteRespuesta as any).password
+
+    res.status(201).json({
+      mensaje: 'Cliente registrado exitosamente',
+      cliente: clienteRespuesta
+    })
+  } catch (error: any) {
+    // Manejo de error de clave duplicada de MongoDB (E11000) para el email
+    if (error.code === 11000) {
+      res.status(409).json({ mensaje: 'El email ya está registrado' })
+      return
+    }
+
+    res.status(500).json({ mensaje: 'Error al registrar el cliente', error: error.message })
+  }
+}
+
+export const loginCliente = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password } = req.body
+
+    const cliente = await Cliente.findOne({ email })
+    if (!cliente) {
+      res.status(401).json({ mensaje: 'Credenciales inválidas' })
+      return
+    }
+
+    const passwordValido = await bcrypt.compare(password, cliente.password)
+    if (!passwordValido) {
+      res.status(401).json({ mensaje: 'Credenciales inválidas' })
+      return
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET no está configurado')
+    }
+
+    const token = jwt.sign({ id: cliente._id, rol: 'Cliente' }, process.env.JWT_SECRET, {
+      expiresIn: '8h'
+    })
+
+    const clienteRespuesta = cliente.toObject()
+    delete (clienteRespuesta as any).password
+
+    res.status(200).json({
+      mensaje: 'Login exitoso',
+      token,
+      cliente: clienteRespuesta
+    })
+  } catch (error) {
+    const err = error as Error
+    res.status(500).json({ mensaje: 'Error al iniciar sesión', error: err.message })
+  }
+}
+
+export const obtenerClientes = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const clientes = await Cliente.find().select('-password')
+    res.status(200).json(clientes)
+  } catch (error) {
+    const err = error as Error
+    res.status(500).json({ mensaje: 'Error al obtener la lista de clientes', error: err.message })
+  }
+}
