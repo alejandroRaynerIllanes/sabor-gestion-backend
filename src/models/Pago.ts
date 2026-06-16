@@ -31,7 +31,6 @@ const PagoSchema = new Schema(
   {
     // 🔑 Identificación
     codigoPago: { type: String, required: true, unique: true },
-    
 
     // 🔗 Relaciones
     // Nota: Asegúrate de que los nombres en "ref" coincidan con tus otros modelos exportados

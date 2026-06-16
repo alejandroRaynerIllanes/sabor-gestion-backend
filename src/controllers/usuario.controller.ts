@@ -106,7 +106,7 @@ export const crearUsuario = async (req: Request, res: Response): Promise<any> =>
 export const actualizarUsuario = async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params
-    const { nombre, apellido, ci, email, password, rol, zona } = req.body
+    const { nombre, apellido, ci, email, password, rol, zona, telefono, direcciones } = req.body
 
     console.log(
       `\n[USUARIO] Actualizar usuario id=${id} campos recibidos: ${Object.keys(req.body).join(', ')}`
@@ -161,6 +161,8 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     if (email !== undefined) datosActualizados.email = email
     if (rol !== undefined) datosActualizados.rol = rol
     if (zona !== undefined) datosActualizados.ubicacion = zona
+    if (telefono !== undefined) datosActualizados.telefono = telefono
+    if (direcciones !== undefined) datosActualizados.direcciones = direcciones
 
     // TRUCO: Solo actualizamos la contraseña si el frontend nos envió una nueva
     if (password && typeof password === 'string' && password.trim() !== '') {
@@ -173,7 +175,7 @@ export const actualizarUsuario = async (req: Request, res: Response): Promise<an
     const usuarioActualizado: any = await Usuario.findByIdAndUpdate(
       id,
       { $set: datosActualizados },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .select('-password')
       .lean()
@@ -234,7 +236,7 @@ export const cambiarEstadoUsuario = async (req: CustomRequest, res: Response): P
     const usuarioActualizado = await Usuario.findByIdAndUpdate(
       id,
       { estado: estado },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .select('-password')
       .lean()

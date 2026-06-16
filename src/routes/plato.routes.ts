@@ -12,7 +12,8 @@ import { soloAdmins } from '../middlewares/rol.middleware'
 
 const router = Router()
 
-router.get('/', verificarToken, obtenerPlatos)
+// Ruta pública para mostrar el catálogo a los clientes
+router.get('/', obtenerPlatos)
 router.get('/:id', verificarToken, obtenerPlatoPorId)
 router.post('/', verificarToken, soloAdmins, crearPlato)
 router.put('/:id', verificarToken, soloAdmins, actualizarPlato)

@@ -12,6 +12,7 @@ export interface IReserva extends Document {
   vip: boolean
   mesa: mongoose.Types.ObjectId // Relación con la Mesa
   usuario: mongoose.Types.ObjectId // Relación con el Usuario que hizo/registró la reserva
+  usuarioModel?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -19,7 +20,7 @@ export interface IReserva extends Document {
 const ReservaSchema = new Schema(
   {
     codigo: { type: String, unique: true, required: true },
-     pedidoId: { type: String, required: true },
+    pedidoId: { type: String, required: false },
     fechaBolivia: { type: String, required: false },
     fecha: { type: Date, required: true },
     hora: { type: String, required: true },
@@ -27,7 +28,13 @@ const ReservaSchema = new Schema(
     cantidadPersonas: { type: Number, required: true, min: 1 },
     vip: { type: Boolean, default: false },
     mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: true },
-    usuario: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true }
+    usuario: { type: Schema.Types.ObjectId, refPath: 'usuarioModel', required: true },
+    usuarioModel: {
+      type: String,
+      required: true,
+      enum: ['Usuario', 'Cliente'],
+      default: 'Usuario'
+    }
   },
   {
     timestamps: true,
