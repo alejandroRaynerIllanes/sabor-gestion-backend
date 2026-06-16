@@ -1,3 +1,4 @@
+//src/controllers/pedido.controller.ts
 import { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
