@@ -36,8 +36,8 @@ const PagoSchema = new Schema(
     // Nota: Asegúrate de que los nombres en "ref" coincidan con tus otros modelos exportados
     codigoPedido: { type: String, required: true },
     pedido: { type: Schema.Types.ObjectId, ref: 'Pedido', required: true },
-    mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: true },
-    mesero: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true }, // Asumo que el mesero viene de la tabla usuarios
+    mesa: { type: Schema.Types.ObjectId, ref: 'Mesa', required: false, default: null },
+    mesero: { type: Schema.Types.ObjectId, ref: 'Usuario', required: false, default: null },
     cajero: { type: Schema.Types.ObjectId, ref: 'Usuario', default: null },
 
     // 👤 Datos cliente

@@ -6,6 +6,7 @@ import Plato from '../models/Plato'
 import { getIO } from '../socket/socket'
 import CierreCaja from '../models/CierreCaja'
 import Reserva from '../models/Reserva'
+import Pago from '../models/Pago'
 import { ESTADOS_MESA, ESTADOS_PEDIDO } from '../utils/constants'
 import { PedidoService } from '../services/pedido.service'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
@@ -136,7 +137,9 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       }
     }
     if (cajero) {
-      filtro.cajeroAsignado = cajero
+      const pagosDelCajero = await Pago.find({ cajero: String(cajero) }).select('pedido')
+      const pedidoIds = pagosDelCajero.map((p) => p.pedido)
+      filtro._id = { $in: pedidoIds }
     }
     if (mesero) {
       filtro.usuario = mesero
@@ -145,11 +148,30 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
       .populate('usuario', 'nombre apellido apellidos')
-      .populate('cajeroAsignado', 'nombre apellido')
       .populate('detalles.plato', 'nombre precio')
       .sort({ createdAt: -1 })
 
-    res.status(200).json(pedidos.map((pedido) => agregarFechaBoliviaPedido(pedido)))
+    // Buscar todos los pagos asociados (Separación de Pagos y Pedidos)
+    const allPedidoIds = pedidos.map((p) => p._id)
+    const pagos = await Pago.find({ pedido: { $in: allPedidoIds } }).populate('cajero', 'nombre apellido')
+
+    const respuesta = pedidos.map((pedido) => {
+      const pedidoObj = agregarFechaBoliviaPedido(pedido)
+      const pago = pagos.find((p) => p.pedido.toString() === pedido._id.toString())
+      if (pago) {
+        pedidoObj.metodoPago = pago.metodoPago
+        pedidoObj.montoDescuento = pago.descuento
+        pedidoObj.montoPropina = pago.propina
+        pedidoObj.subtotalCierre = pago.subtotal
+        pedidoObj.clienteNombre = pago.nombreCliente
+        pedidoObj.clienteCI = pago.ci
+        pedidoObj.clienteNIT = pago.nit
+        pedidoObj.cajeroAsignado = pago.cajero
+      }
+      return pedidoObj
+    })
+
+    res.status(200).json(respuesta)
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al obtener los pedidos', error: err.message })
@@ -309,14 +331,55 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       updates.estado = ESTADOS_PEDIDO.ABIERTO
     }
 
-    // Guardar los campos de la pre-cuenta
-    if (clienteNombre !== undefined) updates.clienteNombre = clienteNombre
-    if (clienteCI !== undefined) updates.clienteCI = clienteCI
-    if (clienteNIT !== undefined) updates.clienteNIT = clienteNIT
-    if (cajeroAsignado !== undefined) updates.cajeroAsignado = cajeroAsignado
-    if (montoDescuento !== undefined) updates.montoDescuento = montoDescuento
-    if (montoPropina !== undefined) updates.montoPropina = montoPropina
-    if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre
+    // Guardar los campos de la pre-cuenta en Pago (Separación de Pagos y Pedidos)
+    const tieneCamposPago =
+      clienteNombre !== undefined ||
+      clienteCI !== undefined ||
+      clienteNIT !== undefined ||
+      cajeroAsignado !== undefined ||
+      montoDescuento !== undefined ||
+      montoPropina !== undefined ||
+      subtotalCierre !== undefined
+
+    if (tieneCamposPago || updates.estado === 'CERRADO') {
+      let pago = await Pago.findOne({ pedido: id })
+      if (!pago) {
+        const pCode = `PAG-${String(id).slice(-6).toUpperCase()}`
+        const oCode = pedidoAnterior?.codigo || `PED-${String(id).slice(-4).toUpperCase()}`
+        pago = new Pago({
+          codigoPago: pCode,
+          codigoPedido: oCode,
+          pedido: id,
+          mesa: pedidoAnterior?.mesa || null,
+          mesero: pedidoAnterior?.usuario || null,
+          estadoPago: 'Pendiente',
+          fechaEnvioCaja: obtenerFechaBolivia(),
+          fechaEnvioCajaBolivia: formatearFechaBolivia(obtenerFechaBolivia())
+        })
+      }
+
+      if (clienteNombre !== undefined) pago.nombreCliente = clienteNombre
+      if (clienteCI !== undefined) pago.ci = clienteCI
+      if (clienteNIT !== undefined) pago.nit = clienteNIT
+      if (cajeroAsignado !== undefined) pago.cajero = cajeroAsignado
+      if (montoDescuento !== undefined) pago.descuento = montoDescuento
+      if (montoPropina !== undefined) pago.propina = montoPropina
+      if (subtotalCierre !== undefined) pago.subtotal = subtotalCierre
+
+      // Recalcular totalFinal
+      const sub = subtotalCierre !== undefined ? subtotalCierre : (pago.subtotal || pedidoAnterior?.total || 0)
+      const desc = montoDescuento !== undefined ? montoDescuento : (pago.descuento || 0)
+      const prop = montoPropina !== undefined ? montoPropina : (pago.propina || 0)
+      pago.totalFinal = sub - desc + prop
+
+      if (updates.estado === 'CERRADO') {
+        pago.estadoPago = 'Pagado'
+        pago.fechaPago = obtenerFechaBolivia()
+        pago.fechaPagoBolivia = formatearFechaBolivia(obtenerFechaBolivia())
+      }
+
+      await pago.save()
+    }
 
     // Actualizamos los platos y el nuevo total del pedido existente
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
@@ -358,9 +421,23 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       getIO().emit('cocina:actualizar_tablero', pedidoActualizado)
     } catch (e) {}
 
+    // Obtener los datos del Pago para adjuntarlos dinámicamente al pedido retornado
+    const pagoAsociado = await Pago.findOne({ pedido: pedidoActualizado._id })
+    const pedidoConPago = typeof pedidoActualizado.toObject === 'function' ? pedidoActualizado.toObject() : pedidoActualizado
+    if (pagoAsociado) {
+      pedidoConPago.metodoPago = pagoAsociado.metodoPago
+      pedidoConPago.montoDescuento = pagoAsociado.descuento
+      pedidoConPago.montoPropina = pagoAsociado.propina
+      pedidoConPago.subtotalCierre = pagoAsociado.subtotal
+      pedidoConPago.clienteNombre = pagoAsociado.nombreCliente
+      pedidoConPago.clienteCI = pagoAsociado.ci
+      pedidoConPago.clienteNIT = pagoAsociado.nit
+      pedidoConPago.cajeroAsignado = pagoAsociado.cajero
+    }
+
     // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
     if (cajeroAsignado) {
-      const payloadCaja = PedidoService.formatearPayloadCaja(pedidoActualizado)
+      const payloadCaja = PedidoService.formatearPayloadCaja(pedidoConPago)
 
       try {
         const io = getIO()
@@ -373,7 +450,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       } catch (e) {}
     }
 
-    res.status(200).json(agregarFechaBoliviaPedido(pedidoActualizado))
+    res.status(200).json(agregarFechaBoliviaPedido(pedidoConPago))
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al actualizar el pedido', error: err.message })
@@ -412,11 +489,29 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
       .populate('detalles.plato', 'nombre precio')
       .sort({ updatedAt: -1 })
 
+    // Buscar los pagos correspondientes (Separación de Pagos y Pedidos)
+    const pedidoIds = pedidos.map((p) => p._id)
+    const pagos = await Pago.find({ pedido: { $in: pedidoIds } })
+
     // 3. Formateamos la respuesta para que sea cómoda para el frontend
-    const respuesta = pedidos.map((pedido: any) => ({
-      ...PedidoService.formatearPayloadCaja(pedido),
-      fechaHoraBolivia: pedido.fechaHora ? formatearFechaBolivia(pedido.fechaHora) : undefined
-    }))
+    const respuesta = pedidos.map((pedido: any) => {
+      const pago = pagos.find((p) => p.pedido.toString() === pedido._id.toString())
+      const pedObj = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
+      if (pago) {
+        pedObj.subtotalCierre = pago.subtotal
+        pedObj.montoDescuento = pago.descuento
+        pedObj.montoPropina = pago.propina
+        pedObj.metodoPago = pago.metodoPago
+        pedObj.clienteNombre = pago.nombreCliente
+        pedObj.clienteCI = pago.ci
+        pedObj.clienteNIT = pago.nit
+        pedObj.cajeroAsignado = pago.cajero
+      }
+      return {
+        ...PedidoService.formatearPayloadCaja(pedObj),
+        fechaHoraBolivia: pedido.fechaHora ? formatearFechaBolivia(pedido.fechaHora) : undefined
+      }
+    })
 
     res.status(200).json(respuesta)
   } catch (error) {
@@ -430,7 +525,7 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
 
 export const solicitarCuentaPedido = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = req.params.id as string
 
     const pedido = await Pedido.findById(id)
 
@@ -465,12 +560,46 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
       return
     }
 
+    // Buscar o crear registro de Pago (Separación de Pagos y Pedidos)
+    let pago = await Pago.findOne({ pedido: new mongoose.Types.ObjectId(id) })
+    if (!pago) {
+      pago = await Pago.create({
+        codigoPago: `PAG-${String(id).slice(-6).toUpperCase()}`,
+        codigoPedido: pedido.codigo,
+        pedido: new mongoose.Types.ObjectId(id),
+        mesa: pedido.mesa || undefined,
+        mesero: pedido.usuario || undefined,
+        subtotal: pedido.total || 0,
+        totalFinal: pedido.total || 0,
+        estadoPago: 'Pendiente',
+        fechaEnvioCaja: obtenerFechaBolivia(),
+        fechaEnvioCajaBolivia: formatearFechaBolivia(obtenerFechaBolivia())
+      } as any)
+    }
+
     const pedidoPoblado = await Pedido.findById(id)
       .populate('mesa', 'numero estado')
       .populate('usuario', 'nombre apellido apellidos')
       .populate('detalles.plato', 'nombre precio')
 
-    const payload = PedidoService.formatearPayloadCaja(pedidoPoblado, mesaActualizada)
+    if (!pedidoPoblado) {
+      res.status(404).json({ mensaje: 'Pedido no encontrado' })
+      return
+    }
+
+    const pedObj = typeof pedidoPoblado.toObject === 'function' ? pedidoPoblado.toObject() : pedidoPoblado
+    if (pago) {
+      pedObj.subtotalCierre = pago.subtotal
+      pedObj.montoDescuento = pago.descuento
+      pedObj.montoPropina = pago.propina
+      pedObj.metodoPago = pago.metodoPago
+      pedObj.clienteNombre = pago.nombreCliente
+      pedObj.clienteCI = pago.ci
+      pedObj.clienteNIT = pago.nit
+      pedObj.cajeroAsignado = pago.cajero
+    }
+
+    const payload = PedidoService.formatearPayloadCaja(pedObj, mesaActualizada)
 
     try {
       const io = getIO()
@@ -601,6 +730,8 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       observacion: item.observacion || ''
     }))
 
+    const totalVentas = total || detallesFormateados.reduce((acc: number, cur: any) => acc + cur.subtotal, 0)
+
     const nuevoPedido = new Pedido({
       _id: pedidoId,
       codigo: `PED-${String(pedidoId).slice(-4).toUpperCase()}`,
@@ -608,21 +739,42 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       usuarioModel: 'Cliente',
       metodoEntrega: 'delivery',
       detalles: detallesFormateados,
-      total: total || detallesFormateados.reduce((acc: number, cur: any) => acc + cur.subtotal, 0),
-      metodoPago: metodoPago || 'Efectivo',
+      total: totalVentas,
       estado: 'Pendiente_de_Aceptacion',
       coordenadasEntrega: { lat, lng },
       direccionEntrega,
       referenciaEntrega,
       costoDelivery,
       clienteTelefono,
-      clienteNombre,
       fechaHoraBolivia: formatearFechaBolivia(fechaHora),
       fechaHora
     })
 
     // 3. Guardar el pedido dentro de la transacción
     await nuevoPedido.save({ session })
+
+    // 3.5 Crear el documento de Pago correspondiente (Separación de Pagos y Pedidos)
+    await Pago.create(
+      [
+        {
+          codigoPago: `PAG-${String(pedidoId).slice(-6).toUpperCase()}`,
+          codigoPedido: nuevoPedido.codigo,
+          pedido: pedidoId,
+          mesa: undefined,
+          mesero: undefined,
+          nombreCliente: clienteNombre || 'Consumidor Final',
+          subtotal: totalVentas,
+          descuento: 0,
+          propina: 0,
+          totalFinal: totalVentas,
+          metodoPago: metodoPago || 'Efectivo',
+          estadoPago: 'Pendiente',
+          fechaEnvioCaja: fechaHora,
+          fechaEnvioCajaBolivia: formatearFechaBolivia(fechaHora)
+        } as any
+      ],
+      { session }
+    )
 
     // 4. Confirmar todos los cambios de forma atómica
     await session.commitTransaction()
@@ -642,9 +794,13 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       console.warn('Checkout delivery creado, pero fallo la notificacion en tiempo real')
     }
 
+    const resPedido = agregarFechaBoliviaPedido(pedidoRespuesta)
+    resPedido.metodoPago = metodoPago || 'Efectivo'
+    resPedido.clienteNombre = clienteNombre || 'Consumidor Final'
+
     res.status(201).json({
       success: true,
-      pedido: agregarFechaBoliviaPedido(pedidoRespuesta),
+      pedido: resPedido,
       asignado: Boolean(pedidoAsignado)
     })
   } catch (error) {

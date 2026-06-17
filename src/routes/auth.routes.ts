@@ -1,6 +1,12 @@
 //src/routes/auth.routes.ts
 import { Router } from 'express'
-import { loginUsuario, verificarCodigo, reenviarCodigo, forgotPassword, resetPassword } from '../controllers/auth.controller'
+import {
+  loginUsuario,
+  verificarCodigo,
+  reenviarCodigo,
+  forgotPassword,
+  resetPassword
+} from '../controllers/auth.controller'
 
 const router = Router()
 
