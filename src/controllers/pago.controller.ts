@@ -9,6 +9,7 @@ import Reserva from '../models/Reserva'
 import Pago from '../models/Pago'
 import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivia'
 import { enviarCorreo } from '../services/email.service'
+import { CustomRequest } from '../middlewares/auth.middleware'
 // 1. Generador de QR (Se mantiene para cuando eligen método QR estático)
 export const generarPagoQR = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -33,7 +34,7 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
 }
 
 // 2. Procesamiento de Pago Final (Conectado a tu Modal)
-export const procesarPagoFinal = async (req: Request, res: Response): Promise<void> => {
+export const procesarPagoFinal = async (req: CustomRequest, res: Response): Promise<void> => {
   const { pedidoId } = req.params
   const { metodoPago, porcentajeDescuento = 0, porcentajePropina = 0 } = req.body
 
@@ -107,7 +108,7 @@ export const procesarPagoFinal = async (req: Request, res: Response): Promise<vo
           pedido: pedido._id,
           mesa: pedido.mesa,
           mesero: (pedido.usuario as any)?._id || pedido.usuario,
-          cajero: (req as any).usuario?.id || ped.cajeroAsignado || null,
+          cajero: req.usuario?.id || ped.cajeroAsignado || null,
           nombreCliente: ped.clienteNombre || 'Consumidor Final',
           ci: ped.clienteCI || '',
           nit: ped.clienteNIT || '',
