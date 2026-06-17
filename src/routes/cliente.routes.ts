@@ -4,7 +4,8 @@ import {
   loginCliente,
   obtenerClientes,
   obtenerClientePorId,
-  actualizarCliente
+  actualizarCliente,
+  eliminarCliente
 } from '../controllers/cliente.controller'
 import { verificarToken } from '../middlewares/auth.middleware'
 import { permitirRoles } from '../middlewares/rol.middleware'
@@ -21,5 +22,6 @@ router.put('/:id', verificarToken, actualizarCliente)
 
 // Rutas protegidas (Solo Administrador)
 router.get('/', verificarToken, permitirRoles('Administrador'), obtenerClientes)
+router.delete('/:id', verificarToken, permitirRoles('Administrador'), eliminarCliente)
 
 export default router

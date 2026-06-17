@@ -8,6 +8,7 @@ export interface ICliente extends Document {
   telefono: string
   direccion?: string
   direcciones?: any[]
+  estado?: boolean
 }
 
 const ClienteSchema = new Schema(
@@ -18,7 +19,8 @@ const ClienteSchema = new Schema(
     password: { type: String, required: true },
     telefono: { type: String, required: true, trim: true },
     direccion: { type: String, required: false, trim: true },
-    direcciones: { type: [Schema.Types.Mixed], default: [] }
+    direcciones: { type: [Schema.Types.Mixed], default: [] },
+    estado: { type: Boolean, default: true }
   },
   {
     timestamps: true,

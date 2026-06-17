@@ -153,3 +153,17 @@ export const actualizarCliente = async (req: CustomRequest, res: Response): Prom
     res.status(500).json({ mensaje: 'Error al actualizar el cliente', error: error.message })
   }
 }
+
+export const eliminarCliente = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+    const clienteEliminado = await Cliente.findByIdAndDelete(id)
+    if (!clienteEliminado) {
+      res.status(404).json({ mensaje: 'Cliente no encontrado' })
+      return
+    }
+    res.status(200).json({ mensaje: 'Cliente eliminado exitosamente' })
+  } catch (error: any) {
+    res.status(500).json({ mensaje: 'Error al eliminar el cliente', error: error.message })
+  }
+}
