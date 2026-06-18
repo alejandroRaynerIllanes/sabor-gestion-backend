@@ -2,7 +2,9 @@ import { Request, Response } from 'express'
 import { CustomRequest } from '../middlewares/auth.middleware'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import Cliente from '../models/Cliente'
+import { verifyGoogleToken } from '../utils/googleAuth'
 
 export const registrarCliente = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -167,3 +169,61 @@ export const eliminarCliente = async (req: Request, res: Response): Promise<void
     res.status(500).json({ mensaje: 'Error al eliminar el cliente', error: error.message })
   }
 }
+
+export const loginGoogleCliente = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.body
+    if (!token) {
+      res.status(400).json({ mensaje: 'El token de Google es requerido' })
+      return
+    }
+
+    const payload = await verifyGoogleToken(token)
+    const { email, nombre, apellidos } = payload
+
+    let cliente = await Cliente.findOne({ email })
+
+    if (!cliente) {
+      // Registrar cliente nuevo de forma automática
+      const randomPassword = crypto.randomBytes(16).toString('hex')
+      const salt = await bcrypt.genSalt(10)
+      const hashedPassword = await bcrypt.hash(randomPassword, salt)
+
+      cliente = new Cliente({
+        nombre,
+        apellidos: apellidos || 'Sin apellidos',
+        email,
+        password: hashedPassword,
+        telefono: 'Sin teléfono',
+        estado: true
+      })
+
+      await cliente.save()
+    }
+
+    if (!cliente.estado) {
+      res.status(403).json({ mensaje: 'Esta cuenta ha sido desactivada. Contacta al soporte.' })
+      return
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET no está configurado')
+    }
+
+    const sessionToken = jwt.sign({ id: cliente._id, rol: 'Cliente' }, process.env.JWT_SECRET, {
+      expiresIn: '8h'
+    })
+
+    const clienteRespuesta = cliente.toObject()
+    delete (clienteRespuesta as any).password
+
+    res.status(200).json({
+      mensaje: 'Login con Google exitoso',
+      token: sessionToken,
+      cliente: clienteRespuesta
+    })
+  } catch (error: any) {
+    res.status(500).json({ mensaje: 'Error en la autenticación con Google', error: error.message })
+  }
+}
+

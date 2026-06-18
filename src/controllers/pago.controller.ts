@@ -47,8 +47,6 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
     return
   }
 
-  const ped: any = pedido
-
   if (pedido.estado === 'CERRADO') {
     res.status(400).json({ mensaje: 'Este pedido ya ha sido pagado y cerrado.' })
     return
@@ -67,15 +65,15 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
   }
 
   // --- Cálculos (sin BD, seguros fuera de la transacción) ---
-  const pagoExistente = await Pago.findOne({ pedido: pedidoId })
-  const subtotal = pagoExistente ? pagoExistente.subtotal : (pedido.total || 0)
+  const ped: any = pedido
+  const subtotal = ped.subtotalCierre || pedido.total || 0
 
   // 🛠️ BUG FIX: Calcular los montos reales si el frontend envió porcentajes en el momento del pago
   const montoDescuento =
-    porcentajeDescuento > 0 ? subtotal * (porcentajeDescuento / 100) : (pagoExistente ? pagoExistente.descuento : 0)
+    porcentajeDescuento > 0 ? subtotal * (porcentajeDescuento / 100) : ped.montoDescuento || 0
 
   const montoPropina =
-    porcentajePropina > 0 ? subtotal * (porcentajePropina / 100) : (pagoExistente ? pagoExistente.propina : 0)
+    porcentajePropina > 0 ? subtotal * (porcentajePropina / 100) : ped.montoPropina || 0
 
   const totalFinal = subtotal - montoDescuento + montoPropina
 
@@ -88,58 +86,46 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
   try {
     pedido.estado = 'CERRADO'
     pedido.total = totalFinal
-    // Los campos de pago (metodoPago, montoDescuento, montoPropina, subtotalCierre) ya no se guardan en Pedido
+    ped.metodoPago = metodoPago
+    ped.montoDescuento = montoDescuento
+    ped.montoPropina = montoPropina
+    ped.subtotalCierre = subtotal
+
     await pedido.save({ session })
 
     const fechaEnvioCaja = obtenerFechaBolivia()
     const fechaPago = obtenerFechaBolivia()
     const momentoExacto = obtenerFechaBolivia()
+    const codigoDelPedido = ped.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`
 
     // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
-    // Buscamos si ya existe el Pago en la sesión
-    let pago = await Pago.findOne({ pedido: pedido._id }).session(session)
-    if (pago) {
-      pago.nombreCliente = pagoExistente?.nombreCliente || 'Consumidor Final'
-      pago.ci = pagoExistente?.ci || ''
-      pago.nit = pagoExistente?.nit || ''
-      pago.subtotal = subtotal
-      pago.descuento = montoDescuento
-      pago.propina = montoPropina
-      pago.totalFinal = totalFinal
-      pago.metodoPago = metodoPago
-      pago.estadoPago = 'Pagado'
-      pago.cajero = (req as any).usuario?.id || pago.cajero || null
-      pago.fechaPago = fechaPago
-      pago.fechaPagoBolivia = formatearFechaBolivia(fechaPago)
-      await pago.save({ session })
-    } else {
-      await Pago.create(
-        [
-          {
-            codigoPago: `PAG-${String(pedido._id).slice(-6).toUpperCase()}`,
-            pedido: pedido._id,
-            codigoPedido: pedido.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`,
-            mesa: pedido.mesa || undefined,
-            mesero: (pedido.usuario as any)?._id || pedido.usuario || undefined,
-            cajero: (req as any).usuario?.id || undefined,
-            nombreCliente: 'Consumidor Final',
-            ci: '',
-            nit: '',
-            subtotal: subtotal,
-            descuento: montoDescuento,
-            propina: montoPropina,
-            totalFinal: totalFinal,
-            metodoPago: metodoPago,
-            estadoPago: 'Pagado',
-            fechaEnvioCajaBolivia: formatearFechaBolivia(fechaEnvioCaja),
-            fechaEnvioCaja,
-            fechaPagoBolivia: formatearFechaBolivia(fechaPago),
-            fechaPago
-          } as any
-        ],
-        { session }
-      )
-    }
+    // Separamos la lógica contable y creamos el registro financiero puro
+    // Nota: Pago.create con session requiere pasar un array
+    const [nuevoPago] = await Pago.create(
+      [
+        {
+          codigoPago: `PAG-${String(pedido._id).slice(-6).toUpperCase()}`,
+          pedido: pedido._id,
+          mesa: pedido.mesa,
+          mesero: (pedido.usuario as any)?._id || pedido.usuario,
+          cajero: (req as any).usuario?.id || ped.cajeroAsignado || null,
+          nombreCliente: ped.clienteNombre || 'Consumidor Final',
+          ci: ped.clienteCI || '',
+          nit: ped.clienteNIT || '',
+          subtotal: subtotal,
+          descuento: montoDescuento,
+          propina: montoPropina,
+          totalFinal: totalFinal,
+          metodoPago: metodoPago,
+          estadoPago: 'Pagado',
+          fechaEnvioCajaBolivia: formatearFechaBolivia(fechaEnvioCaja),
+          fechaEnvioCaja,
+          fechaPagoBolivia: formatearFechaBolivia(fechaPago),
+          fechaPago
+        }
+      ],
+      { session }
+    )
 
     if (pedido.mesa) {
       const inicioHoy = new Date()
@@ -257,12 +243,11 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
       return
     }
 
-    const pago = await Pago.findOne({ pedido: pedidoId })
     const ped: any = pedido
     const codigo = ped.codigo || `PED-${String(ped._id).slice(-4).toUpperCase()}`
-    const subtotal = pago ? pago.subtotal : (ped.total || 0)
-    const descuento = pago ? pago.descuento : 0
-    const propina = pago ? pago.propina : 0
+    const subtotal = ped.subtotalCierre || ped.total || 0
+    const descuento = ped.montoDescuento || 0
+    const propina = ped.montoPropina || 0
     const totalFinal = subtotal - descuento + propina
 
     const mesaNombre = ped.mesa?.numero || 'Barra'
@@ -272,8 +257,8 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
     const fecha = new Date().toLocaleString('es-BO')
 
     // USAMOS LOS DATOS QUE NOS MANDÓ LA PANTALLA (o valores por defecto si fallan)
-    const finalClienteNombre = clienteNombre || (pago ? pago.nombreCliente : '') || 'Consumidor Final'
-    const finalClienteCI = clienteCI || (pago ? (pago.ci || pago.nit) : '') || 'S/N'
+    const finalClienteNombre = clienteNombre || ped.clienteNombre || 'Consumidor Final'
+    const finalClienteCI = clienteCI || ped.clienteCI || ped.clienteNIT || 'S/N'
 
     // 1. Armamos las filas de la tabla de consumo dinámicamente
     let itemsHtml = ''
@@ -346,7 +331,7 @@ export const enviarReciboCorreo = async (req: Request, res: Response): Promise<v
           </div>
 
           <div style="font-size: 12px; color: #6B7280; text-align: center;">
-            <p style="margin: 2px 0;"><strong>Método de Pago:</strong> ${(pago ? pago.metodoPago : '') || 'Efectivo'}</p>
+            <p style="margin: 2px 0;"><strong>Método de Pago:</strong> ${ped.metodoPago || 'Efectivo'}</p>
             <p style="margin: 2px 0;"><strong>Fecha:</strong> ${fecha}</p>
             <br/>
             <p style="margin: 0; font-weight: bold; color: #4B2E2D; font-size: 14px;">¡Gracias por su preferencia!</p>

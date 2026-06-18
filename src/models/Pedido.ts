@@ -92,7 +92,19 @@ const PedidoSchema = new Schema(
     detalles: [DetallePedidoSchema],
     qrUrl: { type: String, required: false },
 
-    // Información del pago final (Removido de PedidoSchema, guardado en PagoSchema)
+    // Información del pago final (Texto plano para simulación)
+    metodoPago: {
+      type: String,
+      enum: ['Efectivo', 'Tarjeta', 'Transferencia', 'QR', 'Otro'],
+      required: false
+    },
+    montoDescuento: { type: Number, default: 0 },
+    montoPropina: { type: Number, default: 0 },
+    subtotalCierre: { type: Number, default: 0 },
+    clienteNombre: { type: String, required: false },
+    clienteCI: { type: String, required: false },
+    clienteNIT: { type: String, required: false },
+    cajeroAsignado: { type: Schema.Types.ObjectId, ref: 'Usuario', required: false },
     fechaHora: { type: Date, default: obtenerFechaBolivia },
     fechaHoraBolivia: { type: String, required: false },
 
