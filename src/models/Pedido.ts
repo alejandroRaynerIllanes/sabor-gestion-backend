@@ -53,6 +53,7 @@ export interface IPedido extends Document {
     lat: number
     lng: number
   }
+  pagoConfirmado?: boolean
 }
 
 const PedidoSchema = new Schema(
@@ -118,6 +119,10 @@ const PedidoSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'Usuario',
       required: false
+    },
+    pagoConfirmado: {
+      type: Boolean,
+      default: false
     },
     coordenadasEntrega: {
       lat: {
