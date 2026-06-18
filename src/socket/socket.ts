@@ -9,6 +9,9 @@ let io: SocketIOServer
 // Mapea orderId -> timestamp del último ping del repartidor
 export const activeDeliveries = new Map<string, number>()
 
+// Diccionario en memoria para almacenar los chats activos de los pedidos
+export const activeChats = new Map<string, any[]>()
+
 export const initSocket = (httpServer: HTTPServer) => {
   io = new SocketIOServer(httpServer, {
     cors: {
@@ -57,7 +60,11 @@ export const initSocket = (httpServer: HTTPServer) => {
     // <-- LÓGICA DELIVERY: Cliente se suscribe a la sala privada de su pedido -->
     socket.on('join_order_room', (orderId: string) => {
       socket.join(orderId)
-      console.log(`📍 Cliente suscrito al track del pedido: ${orderId}`)
+      console.log(`📍 Cliente/Repartidor suscrito a la sala del pedido: ${orderId}`)
+      
+      // Al conectarse, enviamos el historial de chat acumulado para ese pedido
+      const history = activeChats.get(orderId) || []
+      socket.emit('chat:historial', { pedidoId: orderId, mensajes: history })
     })
 
     // <-- LÓGICA DELIVERY: Repartidor actualiza su ubicación en tiempo real -->
@@ -79,6 +86,19 @@ export const initSocket = (httpServer: HTTPServer) => {
         }
       }
     )
+
+    // <-- LÓGICA CHAT SINCRONIZADO: Delivery <-> Cliente -->
+    socket.on('chat:enviar_mensaje', (msg: any) => {
+      console.log(`💬 CHAT [Pedido ${msg.pedidoId}] ${msg.sender}: ${msg.text}`)
+      
+      // Guardamos el mensaje en la memoria del servidor
+      const history = activeChats.get(msg.pedidoId) || []
+      history.push(msg)
+      activeChats.set(msg.pedidoId, history)
+
+      // Retransmitimos a todos (el frontend filtra por ID) para evitar pérdida de mensajes si el chat está cerrado
+      socket.broadcast.emit('chat:nuevo_mensaje', msg)
+    })
 
     socket.on('disconnect', () => {
       console.log(`🔥 Usuario desconectado: ${socket.id}`)

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import { CustomRequest } from '../middlewares/auth.middleware'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import Cliente from '../models/Cliente'
@@ -87,5 +88,82 @@ export const obtenerClientes = async (req: Request, res: Response): Promise<void
   } catch (error) {
     const err = error as Error
     res.status(500).json({ mensaje: 'Error al obtener la lista de clientes', error: err.message })
+  }
+}
+
+export const obtenerClientePorId = async (req: CustomRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+
+    // Control de seguridad: solo el propio cliente o un administrador pueden ver la info
+    if (req.usuario?.rol !== 'Administrador' && req.usuario?.id !== id) {
+      res.status(403).json({ mensaje: 'No tiene permisos para acceder a esta información' })
+      return
+    }
+
+    const cliente = await Cliente.findById(id).select('-password')
+    if (!cliente) {
+      res.status(404).json({ mensaje: 'Cliente no encontrado' })
+      return
+    }
+    res.status(200).json(cliente)
+  } catch (error: any) {
+    res.status(500).json({ mensaje: 'Error al obtener el cliente', error: error.message })
+  }
+}
+
+export const actualizarCliente = async (req: CustomRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+    const { nombre, apellidos, telefono, password, direcciones } = req.body
+
+    // Control de seguridad: solo el propio cliente o un administrador pueden editar la info
+    if (req.usuario?.rol !== 'Administrador' && req.usuario?.id !== id) {
+      res.status(403).json({ mensaje: 'No tiene permisos para modificar esta información' })
+      return
+    }
+
+    const updateFields: any = {}
+    if (nombre !== undefined) updateFields.nombre = nombre
+    if (apellidos !== undefined) updateFields.apellidos = apellidos
+    if (telefono !== undefined) updateFields.telefono = telefono
+    if (direcciones !== undefined) updateFields.direcciones = direcciones
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10)
+      updateFields.password = await bcrypt.hash(password, salt)
+    }
+
+    const clienteActualizado = await Cliente.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).select('-password')
+
+    if (!clienteActualizado) {
+      res.status(404).json({ mensaje: 'Cliente no encontrado' })
+      return
+    }
+
+    res.status(200).json({
+      mensaje: 'Cliente actualizado exitosamente',
+      cliente: clienteActualizado
+    })
+  } catch (error: any) {
+    res.status(500).json({ mensaje: 'Error al actualizar el cliente', error: error.message })
+  }
+}
+
+export const eliminarCliente = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+    const clienteEliminado = await Cliente.findByIdAndDelete(id)
+    if (!clienteEliminado) {
+      res.status(404).json({ mensaje: 'Cliente no encontrado' })
+      return
+    }
+    res.status(200).json({ mensaje: 'Cliente eliminado exitosamente' })
+  } catch (error: any) {
+    res.status(500).json({ mensaje: 'Error al eliminar el cliente', error: error.message })
   }
 }
