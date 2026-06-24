@@ -108,7 +108,7 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
           pedido: pedido._id,
           mesa: pedido.mesa,
           mesero: (pedido.usuario as any)?._id || pedido.usuario,
-          cajero: req.usuario?.id || ped.cajeroAsignado || null,
+          cajero: (req as any).usuario?.id || ped.cajeroAsignado || null,
           nombreCliente: ped.clienteNombre || 'Consumidor Final',
           ci: ped.clienteCI || '',
           nit: ped.clienteNIT || '',
@@ -201,14 +201,38 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
   try {
     const { pedidoId } = req.params
 
-    // Emitimos el WebSocket avisando a la Caja que alguien acaba de pagar por QR
+    const pedido = await Pedido.findById(pedidoId)
+      .populate('mesa', 'numero')
+      .populate('usuario', 'nombre apellido')
+      .populate('detalles.plato', 'nombre precio')
+
+    if (pedido) {
+      pedido.pagoConfirmado = true
+      await pedido.save()
+    }
+
+    // Emitimos los WebSockets correspondientes
     try {
       const io = getIO()
+      
+      // 1. Avisar a la caja
       io.emit('caja:pago_confirmado', {
         pedidoId,
         mensaje: 'Transferencia QR recibida',
         fecha: obtenerFechaBolivia()
       })
+
+      // 2. Avisar al cliente en tiempo real
+      io.emit(`pedido:pago_recibido:${pedidoId}`, {
+        pedidoId,
+        mensaje: 'Pago QR recibido correctamente',
+        pedido
+      })
+
+      // 3. Avisar al delivery (nuevo pedido disponible) si es entrega por delivery
+      if (pedido && pedido.metodoEntrega === 'delivery') {
+        io.emit('delivery:nuevo_pedido', pedido)
+      }
     } catch (socketError) {
       console.warn('Falló la emisión del WebSocket de simulación:', socketError)
     }

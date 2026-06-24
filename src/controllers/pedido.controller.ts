@@ -611,6 +611,7 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       detalles: detallesFormateados,
       total: total || detallesFormateados.reduce((acc: number, cur: any) => acc + cur.subtotal, 0),
       metodoPago: metodoPago || 'Efectivo',
+      pagoConfirmado: (metodoPago || 'Efectivo') !== 'QR',
       estado: 'Pendiente_de_Aceptacion',
       coordenadasEntrega: { lat, lng },
       direccionEntrega,
@@ -635,7 +636,9 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
 
     try {
       const io = getIO()
-      io.emit('delivery:nuevo_pedido', pedidoRespuesta)
+      if (nuevoPedido.metodoPago !== 'QR') {
+        io.emit('delivery:nuevo_pedido', pedidoRespuesta)
+      }
       if (pedidoAsignado?.repartidorId) {
         io.emit('delivery:pedido_asignado', pedidoAsignado)
       }

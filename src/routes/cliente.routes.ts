@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   registrarCliente,
   loginCliente,
+  loginGoogleCliente,
   obtenerClientes,
   obtenerClientePorId,
   actualizarCliente,
@@ -15,6 +16,7 @@ const router = Router()
 // Rutas públicas
 router.post('/auth/register', registrarCliente)
 router.post('/auth/login', loginCliente)
+router.post('/auth/google', loginGoogleCliente)
 
 // Rutas protegidas (Para el propio cliente o administrador)
 router.get('/:id', verificarToken, obtenerClientePorId)
