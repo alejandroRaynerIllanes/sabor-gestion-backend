@@ -1,3 +1,4 @@
+//src/controllers/cliente.controller.ts
 import { Request, Response } from 'express'
 import { CustomRequest } from '../middlewares/auth.middleware'
 import bcrypt from 'bcryptjs'

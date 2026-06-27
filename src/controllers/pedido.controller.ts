@@ -1,3 +1,4 @@
+//src/controllers/pedido.controller.ts
 import { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
@@ -141,12 +142,18 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     if (mesero) {
       filtro.usuario = mesero
     }
+// ... código anterior de obtenerPedidos ...
 
     const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
       .populate('usuario', 'nombre apellido apellidos')
       .populate('cajeroAsignado', 'nombre apellido')
-      .populate('detalles.plato', 'nombre precio')
+      // 🔥 AQUÍ ESTÁ EL CAMBIO EXACTO PARA QUE FUNCIONE EL REPORTE
+      .populate({
+        path: 'detalles.plato',
+        select: 'nombre precio',
+        populate: { path: 'categoria', select: 'nombre' }
+      })
       .sort({ createdAt: -1 })
 
     res.status(200).json(pedidos.map((pedido) => agregarFechaBoliviaPedido(pedido)))
