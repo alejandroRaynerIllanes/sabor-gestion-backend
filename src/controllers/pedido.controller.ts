@@ -176,16 +176,6 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
     pedido.estado = ESTADOS_PEDIDO.CANCELADO
     await pedido.save()
 
-    // NUEVO: Si fue un pedido de delivery, devolver el stock reservado de los Platos
-    const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
-    if (pedidoPlano.metodoEntrega === 'delivery' && Array.isArray(pedidoPlano.detalles)) {
-      for (const item of pedidoPlano.detalles) {
-        await Plato.findByIdAndUpdate(item.plato, {
-          $inc: { stock: Number(item.cantidad) } // Sumamos de vuelta la cantidad
-        })
-      }
-    }
-
     // Si el pedido tenía una mesa asignada, la liberamos
     if (pedido.mesa) {
       const inicioHoy = obtenerFechaBolivia()
@@ -578,22 +568,15 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       }
 
       const plato = await Plato.findById(item.platoId || item.plato).session(session)
-      if (!plato || plato.stock < cantidad) {
+      if (!plato || !plato.disponible) {
         await session.abortTransaction()
         session.endSession()
         res.status(400).json({
           success: false,
-          mensaje: `Stock insuficiente para el plato: ${plato?.nombre || 'Desconocido'}`
+          mensaje: `El plato no está disponible: ${plato?.nombre || 'Desconocido'}`
         })
         return
       }
-
-      // Reservar stock atómicamente dentro de la sesión
-      await Plato.findByIdAndUpdate(
-        item.platoId || item.plato,
-        { $inc: { stock: -cantidad } },
-        { session }
-      )
     }
 
     // 2. Generar documento del pedido cumpliendo las reglas del Schema IPedido.
@@ -642,9 +625,9 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
 
     try {
       const io = getIO()
-      if (nuevoPedido.metodoPago !== 'QR') {
-        io.emit('delivery:nuevo_pedido', pedidoRespuesta)
-      }
+      // Emitir SIEMPRE el evento para que aparezca instantáneamente en la pantalla del Repartidor
+      io.emit('delivery:nuevo_pedido', pedidoRespuesta)
+      
       if (pedidoAsignado?.repartidorId) {
         io.emit('delivery:pedido_asignado', pedidoAsignado)
       }
