@@ -231,6 +231,7 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
 
       // 3. Avisar al delivery (nuevo pedido disponible) si es entrega por delivery
       if (pedido && pedido.metodoEntrega === 'delivery') {
+        io.emit('delivery:pago_confirmado', { pedidoId })
         io.emit('delivery:nuevo_pedido', pedido)
       }
     } catch (socketError) {
