@@ -1,4 +1,4 @@
-//src/controllers/pedido.controller.ts
+// src/controllers/pedido.controller.ts
 import { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Pedido from '../models/Pedido'
@@ -13,7 +13,8 @@ import { obtenerFechaBolivia, formatearFechaBolivia } from '../utils/fechaBolivi
 import { CustomRequest } from '../middlewares/auth.middleware'
 import { asignarRepartidorDisponible } from '../services/delivery.service'
 
-// procesarDescuentoPedido es invocado internamente por PedidoService.actualizarEstadoService
+// 🔥 NUEVA IMPORTACIÓN: Escudo Validador de Ingredientes
+import { validarDisponibilidadIngredientes } from '../services/inventario.service'
 
 const agregarFechaBoliviaPedido = (pedido: any) => {
   const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
@@ -31,6 +32,26 @@ const agregarFechaBoliviaPedido = (pedido: any) => {
 
 export const crearPedido = async (req: Request, res: Response): Promise<void> => {
   try {
+    // 🛡️ NUEVO ESCUDO: Validar ingredientes antes de permitir que el mesero cree la orden
+    if (req.body.detalles && Array.isArray(req.body.detalles)) {
+      const itemsParaValidar = req.body.detalles.map((detalle: any) => ({
+        platoId: detalle.plato,
+        cantidad: Number(detalle.cantidad),
+        observacion: detalle.observacion || ''
+      }))
+
+      const validacion = await validarDisponibilidadIngredientes(itemsParaValidar)
+
+      if (!validacion.success) {
+        res.status(400).json({
+          success: false,
+          mensaje: 'Alerta de inventario',
+          errores: validacion.errores // Aquí viaja el texto exacto con los ingredientes que faltan
+        })
+        return
+      }
+    }
+
     // 1. Registrar el nuevo pedido y generar un código seguro basado en su ObjectID
     const pedidoId = new mongoose.Types.ObjectId()
     const fechaHora = obtenerFechaBolivia()
@@ -91,7 +112,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     //  Endpoint para consultar los Reportes de Cierre reales de la BD
     if (reportesCierre === 'true') {
       const limite = obtenerFechaBolivia()
-      limite.setHours(limite.getHours() - 48) // Ampliamos el margen a 48h para evitar cortes por UTC (Zona horaria)
+      limite.setHours(limite.getHours() - 48)
       const cierres = await CierreCaja.find({
         fechaCierre: { $gte: limite }
       }).sort({ fechaCierre: -1 })
@@ -142,13 +163,12 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     if (mesero) {
       filtro.usuario = mesero
     }
-// ... código anterior de obtenerPedidos ...
 
     const pedidos = await Pedido.find(filtro)
       .populate('mesa', 'numero')
       .populate('usuario', 'nombre apellido apellidos')
       .populate('cajeroAsignado', 'nombre apellido')
-      // 🔥 AQUÍ ESTÁ EL CAMBIO EXACTO PARA QUE FUNCIONE EL REPORTE
+      // 🔥 REPARACIÓN REPORTES: Populate profundo para Categorías
       .populate({
         path: 'detalles.plato',
         select: 'nombre precio',
@@ -175,6 +195,19 @@ export const cancelarPedido = async (req: Request, res: Response): Promise<void>
 
     pedido.estado = ESTADOS_PEDIDO.CANCELADO
     await pedido.save()
+
+    // ⚠️ DEPRECADO: Como implementamos el Escudo Validador de Ingredientes Reales,
+    // ya no es necesario devolver el 'Plato.stock' falso.
+    /*
+    const pedidoPlano = typeof pedido.toObject === 'function' ? pedido.toObject() : pedido
+    if (pedidoPlano.metodoEntrega === 'delivery' && Array.isArray(pedidoPlano.detalles)) {
+      for (const item of pedidoPlano.detalles) {
+        await Plato.findByIdAndUpdate(item.plato, {
+          $inc: { stock: Number(item.cantidad) } 
+        })
+      }
+    }
+    */
 
     // Si el pedido tenía una mesa asignada, la liberamos
     if (pedido.mesa) {
@@ -217,13 +250,12 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
     const { estado } = req.body
 
     // 1. Delegar toda la lógica de negocio al servicio
-    //    (busca el pedido, actualiza estado, descuenta inventario si aplica)
     const { pedidoActualizado, disparaAlertaListo } = await PedidoService.actualizarEstadoService(
       String(id),
       String(estado)
     )
 
-    // 2. WEBSOCKETS — responsabilidad del controlador (el servicio no conoce getIO)
+    // 2. WEBSOCKETS — responsabilidad del controlador
     try {
       const io = getIO()
 
@@ -260,7 +292,6 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
     })
   } catch (error) {
     const err = error as Error
-    // El servicio lanza 'PEDIDO_NO_ENCONTRADO' cuando el ID no existe
     if (err.message === 'PEDIDO_NO_ENCONTRADO') {
       res.status(404).json({ mensaje: 'Pedido no encontrado' })
       return
@@ -274,7 +305,6 @@ export const actualizarEstadoPedido = async (req: Request, res: Response): Promi
 export const actualizarPedido = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params
-    // Agregamos los campos de la pre-cuenta
     const {
       total,
       detalles,
@@ -306,7 +336,6 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       updates.estado = ESTADOS_PEDIDO.ABIERTO
     }
 
-    // Guardar los campos de la pre-cuenta
     if (clienteNombre !== undefined) updates.clienteNombre = clienteNombre
     if (clienteCI !== undefined) updates.clienteCI = clienteCI
     if (clienteNIT !== undefined) updates.clienteNIT = clienteNIT
@@ -315,7 +344,6 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (montoPropina !== undefined) updates.montoPropina = montoPropina
     if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre
 
-    // Actualizamos los platos y el nuevo total del pedido existente
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
       { $set: updates },
@@ -330,8 +358,6 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       return
     }
 
-    // REPARACIÓN CRÍTICA (Bug 1): Solo forzar la mesa a Ocupada si se agregaron nuevos platos
-    // y el pedido realmente se reabrió. Evita que la mesa desaparezca de la Caja al poner el NIT.
     if (pedidoActualizado.mesa) {
       const mesaId =
         typeof pedidoActualizado.mesa === 'object'
@@ -350,22 +376,15 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       }
     }
 
-    // Avisamos a la cocina en tiempo real que este pedido tiene platos nuevos
     try {
       getIO().emit('cocina:actualizar_tablero', pedidoActualizado)
     } catch (e) {}
 
-    // Si el mesero asignó un cajero, emitimos el evento de nueva cuenta
     if (cajeroAsignado) {
       const payloadCaja = PedidoService.formatearPayloadCaja(pedidoActualizado)
-
       try {
         const io = getIO()
-
-        // Evento que ya existía en el backend
         io.emit('caja:nueva_cuenta', payloadCaja)
-
-        // Evento sugerido por el documento del frontend
         io.emit('caja:solicitud_pago', payloadCaja)
       } catch (e) {}
     }
@@ -381,7 +400,6 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
   try {
     const { cajero } = req.query
 
-    // 1. Buscamos las mesas que ya solicitaron cuenta
     const mesasConCuentaSolicitada = await Mesa.find({
       estado: ESTADOS_MESA.CUENTA_SOLICITADA
     }).select('_id')
@@ -389,7 +407,6 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
     const mesaIds = mesasConCuentaSolicitada.map((mesa) => mesa._id)
 
     const filtroPedidos: any = {
-      // SOLUCIÓN: En lugar de exigir 'ENTREGADO', aceptamos cualquier pedido activo
       estado: { $nin: [ESTADOS_PEDIDO.CERRADO, ESTADOS_PEDIDO.CANCELADO] },
       mesa: { $in: mesaIds }
     }
@@ -402,14 +419,12 @@ export const obtenerPedidosPendientesCobro = async (req: Request, res: Response)
       ]
     }
 
-    // 2. Buscamos pedidos asociados a esas mesas
     const pedidos = await Pedido.find(filtroPedidos)
       .populate('mesa', 'numero estado')
       .populate('usuario', 'nombre apellido apellidos')
       .populate('detalles.plato', 'nombre precio')
       .sort({ updatedAt: -1 })
 
-    // 3. Formateamos la respuesta para que sea cómoda para el frontend
     const respuesta = pedidos.map((pedido: any) => ({
       ...PedidoService.formatearPayloadCaja(pedido),
       fechaHoraBolivia: pedido.fechaHora ? formatearFechaBolivia(pedido.fechaHora) : undefined
@@ -443,7 +458,6 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
       return
     }
 
-    // FLEXIBILIZACIÓN (Bug 2): Permitir pedir cuenta aunque el chef no haya tocado el pedido (Ej: Solo bebidas).
     if (pedido.estado === ESTADOS_PEDIDO.CANCELADO || pedido.estado === ESTADOS_PEDIDO.CERRADO) {
       res.status(400).json({
         mensaje: 'No se puede solicitar cuenta de un pedido que ya está cerrado o cancelado.'
@@ -471,14 +485,8 @@ export const solicitarCuentaPedido = async (req: Request, res: Response): Promis
 
     try {
       const io = getIO()
-
-      // Evento equivalente para pantalla de caja.
       io.emit('caja:nueva_cuenta', payload)
-
-      // Evento recomendado por el documento del frontend.
       io.emit('caja:solicitud_pago', payload)
-
-      // También avisamos a todos que la mesa cambió de estado.
       io.emit('mesas:updated', {
         id: mesaActualizada._id.toString(),
         status: 'Esperando pago',
@@ -555,28 +563,24 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       return
     }
 
-    // 1. Verificacion y reserva de stock DENTRO de la transacción (lectura + escritura atómica).
-    for (const item of items) {
-      const cantidad = Number(item.cantidad)
-      if (!cantidad || cantidad <= 0) {
-        await session.abortTransaction()
-        session.endSession()
-        res
-          .status(400)
-          .json({ success: false, mensaje: 'Cada item debe tener una cantidad mayor a cero.' })
-        return
-      }
+    // 🛡️ NUEVO ESCUDO: Verificación INTELIGENTE de Ingredientes DENTRO de la transacción
+    const itemsParaValidar = items.map((item: any) => ({
+      platoId: item.platoId || item.plato,
+      cantidad: Number(item.cantidad),
+      observacion: item.observacion || ''
+    }))
 
-      const plato = await Plato.findById(item.platoId || item.plato).session(session)
-      if (!plato || !plato.disponible) {
-        await session.abortTransaction()
-        session.endSession()
-        res.status(400).json({
-          success: false,
-          mensaje: `El plato no está disponible: ${plato?.nombre || 'Desconocido'}`
-        })
-        return
-      }
+    const validacion = await validarDisponibilidadIngredientes(itemsParaValidar)
+
+    if (!validacion.success) {
+      await session.abortTransaction()
+      session.endSession()
+      res.status(400).json({
+        success: false,
+        mensaje: 'No hay suficientes ingredientes para preparar este pedido.',
+        errores: validacion.errores // Envía el detalle exacto al frontend
+      })
+      return
     }
 
     // 2. Generar documento del pedido cumpliendo las reglas del Schema IPedido.
@@ -619,13 +623,12 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
     await session.commitTransaction()
     session.endSession()
 
-    // 5. Asignar repartidor DESPUÉS del commit (operación independiente, no crítica para la atomicidad)
+    // 5. Asignar repartidor DESPUÉS del commit
     const pedidoAsignado = await asignarRepartidorDisponible(String(nuevoPedido._id))
     const pedidoRespuesta = pedidoAsignado || nuevoPedido
 
     try {
       const io = getIO()
-      // Emitir SIEMPRE el evento para que aparezca instantáneamente en la pantalla del Repartidor
       io.emit('delivery:nuevo_pedido', pedidoRespuesta)
       
       if (pedidoAsignado?.repartidorId) {
@@ -641,7 +644,6 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
       asignado: Boolean(pedidoAsignado)
     })
   } catch (error) {
-    // Revertir TODOS los cambios: stock de platos y pedido se deshacen juntos
     await session.abortTransaction()
     session.endSession()
     const err = error as Error
