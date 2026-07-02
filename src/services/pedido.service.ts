@@ -21,6 +21,19 @@ export class PedidoService {
    */
   static formatearPayloadCaja(pedido: any, mesaOverride?: any) {
     const mesa = mesaOverride || pedido.mesa
+    const itemsSubtotal =
+      pedido.detalles && pedido.detalles.length > 0
+        ? pedido.detalles.reduce(
+            (sum: number, d: any) => sum + Number(d.precioUnitario || 0) * Number(d.cantidad || 1),
+            0
+          )
+        : pedido.subtotalCierre || pedido.total || 0
+
+    const subtotalBase = Number(pedido.subtotalCierre || itemsSubtotal || 0)
+    const montoDesc = Number(pedido.montoDescuento || 0)
+    const montoProp = Number(pedido.montoPropina || 0)
+    const totalCalc = Number(Math.max(0, subtotalBase - montoDesc + montoProp).toFixed(2))
+
     return {
       pedidoId: pedido._id,
       codigo: pedido.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`,
@@ -29,13 +42,16 @@ export class PedidoService {
       meseroNombre: pedido.usuario
         ? `${pedido.usuario.nombre || ''} ${pedido.usuario.apellido || ''}`.trim()
         : 'Sin mesero',
-      subtotal: pedido.subtotalCierre || pedido.total || 0,
-      descuento: pedido.montoDescuento || 0,
-      propina: pedido.montoPropina || 0,
-      total:
-        (pedido.subtotalCierre || pedido.total || 0) -
-        (pedido.montoDescuento || 0) +
-        (pedido.montoPropina || 0),
+      subtotal: subtotalBase,
+      subtotalCierre: subtotalBase,
+      descuento: montoDesc,
+      montoDescuento: montoDesc,
+      propina: montoProp,
+      montoPropina: montoProp,
+      total: totalCalc,
+      clienteNombre: pedido.clienteNombre,
+      clienteCI: pedido.clienteCI,
+      clienteNIT: pedido.clienteNIT,
       tiempoEsperaMinutos:
         pedido.updatedAt || pedido.createdAt || pedido.fechaHora
           ? Math.floor(
