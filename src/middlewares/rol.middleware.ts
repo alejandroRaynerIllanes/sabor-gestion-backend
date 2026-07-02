@@ -10,7 +10,15 @@ export const permitirRoles = (...rolesPermitidos: string[]) => {
       })
     }
 
-    if (!rolesPermitidos.includes(req.usuario.rol)) {
+    const userRole = String(req.usuario.rol || '').toLowerCase().trim()
+    const allowed = rolesPermitidos.some((role) => {
+      const r = role.toLowerCase().trim()
+      if (r === userRole) return true
+      if ((r === 'repartidor' || r === 'delivery') && (userRole === 'repartidor' || userRole === 'delivery')) return true
+      return false
+    })
+
+    if (!allowed) {
       return res.status(403).json({
         mensaje: 'Acceso denegado. No tienes permisos para realizar esta acción.'
       })

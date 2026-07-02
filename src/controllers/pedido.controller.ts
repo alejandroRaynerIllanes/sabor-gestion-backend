@@ -133,11 +133,12 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     }
 
     if (hoy === 'true') {
-      const inicioHoy = obtenerFechaBolivia()
+      const inicioHoy = new Date()
       inicioHoy.setHours(0, 0, 0, 0)
-      const finHoy = new Date()
-      finHoy.setHours(23, 59, 59, 999)
-      filtro.createdAt = { $gte: inicioHoy, $lte: finHoy }
+      filtro.$or = [
+        { createdAt: { $gte: inicioHoy } },
+        { updatedAt: { $gte: inicioHoy } }
+      ]
     } else if (fecha) {
       const inicio = new Date(`${fecha}T00:00:00`)
       const fin = new Date(`${fecha}T23:59:59.999`)
@@ -158,7 +159,19 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
       }
     }
     if (cajero) {
-      filtro.cajeroAsignado = cajero
+      const cajeroFiltro = {
+        $or: [
+          { cajeroAsignado: cajero },
+          { cajeroAsignado: null },
+          { cajeroAsignado: { $exists: false } }
+        ]
+      }
+      if (filtro.$or) {
+        filtro.$and = [{ $or: filtro.$or }, cajeroFiltro]
+        delete filtro.$or
+      } else {
+        filtro.$or = cajeroFiltro.$or
+      }
     }
     if (mesero) {
       filtro.usuario = mesero
@@ -315,6 +328,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
       montoDescuento,
       montoPropina,
       subtotalCierre,
+      metodoPago,
       repartidorId,
       estado
     } = req.body
@@ -326,6 +340,7 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
 
     if (repartidorId !== undefined) updates.repartidorId = repartidorId
     if (estado !== undefined) updates.estado = estado
+    if (metodoPago !== undefined) updates.metodoPago = metodoPago
 
     // Solo reabrir el pedido a ABIERTO si se están agregando nuevos platos (detalles)
     if (
@@ -344,6 +359,21 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (montoPropina !== undefined) updates.montoPropina = montoPropina
     if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre
 
+<<<<<<< HEAD
+=======
+    // Recalcular total si hay descuento o propina o subtotalCierre
+    const finalSub = updates.subtotalCierre !== undefined ? updates.subtotalCierre : (pedidoAnterior?.subtotalCierre || updates.total || pedidoAnterior?.total || 0)
+    const finalDesc = updates.montoDescuento !== undefined ? updates.montoDescuento : (pedidoAnterior?.montoDescuento || 0)
+    const finalProp = updates.montoPropina !== undefined ? updates.montoPropina : (pedidoAnterior?.montoPropina || 0)
+    if (updates.montoDescuento !== undefined || updates.montoPropina !== undefined || updates.subtotalCierre !== undefined) {
+      updates.total = Math.max(0, finalSub - finalDesc + finalProp)
+      if (!updates.subtotalCierre && (!pedidoAnterior?.subtotalCierre || pedidoAnterior.subtotalCierre === 0)) {
+        updates.subtotalCierre = finalSub
+      }
+    }
+
+    // Actualizamos los platos y el nuevo total del pedido existente
+>>>>>>> 6dc7340 (error de pago contador)
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
       { $set: updates },

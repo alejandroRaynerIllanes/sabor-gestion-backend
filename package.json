@@ -23,7 +23,11 @@
     "mongoose": "^9.3.1",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
+<<<<<<< HEAD
     "nodemailer": "^9.0.1",
+=======
+    "nodemailer": "^9.0.3",
+>>>>>>> 6dc7340 (error de pago contador)
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

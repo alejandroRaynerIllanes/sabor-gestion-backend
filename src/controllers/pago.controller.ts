@@ -36,7 +36,15 @@ export const generarPagoQR = async (req: Request, res: Response): Promise<void> 
 // 2. Procesamiento de Pago Final (Conectado a tu Modal)
 export const procesarPagoFinal = async (req: CustomRequest, res: Response): Promise<void> => {
   const { pedidoId } = req.params
-  const { metodoPago, porcentajeDescuento = 0, porcentajePropina = 0 } = req.body
+  const {
+    metodoPago,
+    porcentajeDescuento = 0,
+    porcentajePropina = 0,
+    montoDescuento: bodyMontoDescuento,
+    montoPropina: bodyMontoPropina,
+    subtotalCierre: bodySubtotalCierre,
+    cajeroAsignado: bodyCajeroAsignado
+  } = req.body
 
   // --- Validaciones previas (sin sesión, para responder rápido al cliente) ---
   // Hacemos populate del usuario (Mesero) para saber quién tomó la orden
@@ -59,23 +67,32 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
     return
   }
 
-  if (!['Efectivo', 'Tarjeta', 'QR'].includes(metodoPago)) {
-    res.status(400).json({ mensaje: 'Método de pago no permitido. Use Efectivo, Tarjeta o QR.' })
-    return
-  }
+  const metodoPagoNormalizado = String(metodoPago || '').trim()
+  const metodosValidos = ['Efectivo', 'Tarjeta', 'QR']
+  const metodoPagoValido = metodosValidos.find(
+    (m) => m.toLowerCase() === metodoPagoNormalizado.toLowerCase()
+  ) || 'Efectivo'
 
   // --- Cálculos (sin BD, seguros fuera de la transacción) ---
   const ped: any = pedido
-  const subtotal = ped.subtotalCierre || pedido.total || 0
+  const subtotal = Number(bodySubtotalCierre || ped.subtotalCierre || pedido.total || 0)
 
-  // 🛠️ BUG FIX: Calcular los montos reales si el frontend envió porcentajes en el momento del pago
   const montoDescuento =
-    porcentajeDescuento > 0 ? subtotal * (porcentajeDescuento / 100) : ped.montoDescuento || 0
+    bodyMontoDescuento !== undefined && bodyMontoDescuento !== null
+      ? Number(bodyMontoDescuento)
+      : porcentajeDescuento > 0
+        ? subtotal * (porcentajeDescuento / 100)
+        : Number(ped.montoDescuento || 0)
 
   const montoPropina =
-    porcentajePropina > 0 ? subtotal * (porcentajePropina / 100) : ped.montoPropina || 0
+    bodyMontoPropina !== undefined && bodyMontoPropina !== null
+      ? Number(bodyMontoPropina)
+      : porcentajePropina > 0
+        ? subtotal * (porcentajePropina / 100)
+        : Number(ped.montoPropina || 0)
 
-  const totalFinal = subtotal - montoDescuento + montoPropina
+  const totalFinal = Math.max(0, subtotal - montoDescuento + montoPropina)
+  const cajeroId = (req as any).usuario?.id || bodyCajeroAsignado || ped.cajeroAsignado || null
 
   // --- TRANSACCIÓN MONGODB: todas las escrituras son atómicas ---
   const session = await mongoose.startSession()
@@ -86,21 +103,21 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
   try {
     pedido.estado = 'CERRADO'
     pedido.total = totalFinal
-    ped.metodoPago = metodoPago
+    ped.metodoPago = metodoPagoValido
     ped.montoDescuento = montoDescuento
     ped.montoPropina = montoPropina
     ped.subtotalCierre = subtotal
+    ped.pagoConfirmado = true
+    if (cajeroId) {
+      ped.cajeroAsignado = cajeroId
+    }
 
     await pedido.save({ session })
 
     const fechaEnvioCaja = obtenerFechaBolivia()
     const fechaPago = obtenerFechaBolivia()
-    const momentoExacto = obtenerFechaBolivia()
-    const codigoDelPedido = ped.codigo || `PED-${String(pedido._id).slice(-4).toUpperCase()}`
 
     // 1. SINCRONIZACIÓN OFICIAL EN LA COLECCIÓN "PAGOS"
-    // Separamos la lógica contable y creamos el registro financiero puro
-    // Nota: Pago.create con session requiere pasar un array
     const [nuevoPago] = await Pago.create(
       [
         {
@@ -108,7 +125,7 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
           pedido: pedido._id,
           mesa: pedido.mesa,
           mesero: (pedido.usuario as any)?._id || pedido.usuario,
-          cajero: (req as any).usuario?.id || ped.cajeroAsignado || null,
+          cajero: cajeroId,
           nombreCliente: ped.clienteNombre || 'Consumidor Final',
           ci: ped.clienteCI || '',
           nit: ped.clienteNIT || '',
@@ -116,7 +133,7 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
           descuento: montoDescuento,
           propina: montoPropina,
           totalFinal: totalFinal,
-          metodoPago: metodoPago,
+          metodoPago: metodoPagoValido,
           estadoPago: 'Pagado',
           fechaEnvioCajaBolivia: formatearFechaBolivia(fechaEnvioCaja),
           fechaEnvioCaja,
@@ -184,12 +201,16 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
     mensaje: 'Pago procesado exitosamente',
     comprobante: {
       pedidoId: pedido._id,
-      meseroNombre: meseroNombre, // <-- AHORA SÍ VIAJA EL NOMBRE DEL MESERO AL FRONTEND
+      meseroNombre: meseroNombre,
       subtotal: subtotal,
+      montoDescuento: montoDescuento,
+      montoPropina: montoPropina,
       descuentoAplicado: montoDescuento,
       propinaAplicada: montoPropina,
+      total: totalFinal,
       totalPagado: totalFinal,
       metodoPago: ped.metodoPago,
+      cajeroAsignado: ped.cajeroAsignado,
       fechaBolivia: formatearFechaBolivia(fechaComprobante),
       fecha: fechaComprobante
     }
@@ -214,7 +235,7 @@ export const simularPagoQR = async (req: Request, res: Response): Promise<void> 
     // Emitimos los WebSockets correspondientes
     try {
       const io = getIO()
-      
+
       // 1. Avisar a la caja
       io.emit('caja:pago_confirmado', {
         pedidoId,
