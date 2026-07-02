@@ -6,6 +6,7 @@ import Ingrediente, { IIngrediente } from '../models/Ingrediente'
 import MovimientoInventario from '../models/MovimientoInventario'
 import AlertaStock from '../models/AlertaStock'
 import { getIO } from '../socket/socket'
+import Plato from '../models/Plato'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,63 @@ async function existeAlertaHoy(ingredienteId: mongoose.Types.ObjectId): Promise<
   return alerta !== null
 }
 
+
+// ─── NUEVO: Escudo Validador Centralizado ────────────────────────────────────
+
+export async function validarDisponibilidadIngredientes(
+  items: { platoId: string; cantidad: number; observacion?: string }[]
+): Promise<{ success: boolean; errores: string[] }> {
+  // Mapa para acumular cuánto necesitamos de cada ingrediente: { ingredienteId -> requerido, nombres de platos }
+  const requerimientos = new Map<string, { requerido: number; platos: Set<string> }>()
+
+  for (const item of items) {
+    const receta = await Receta.findOne({ plato: item.platoId }).populate('ingredientes.ingrediente')
+    const plato = await Plato.findById(item.platoId)
+    const nombrePlato = plato ? plato.nombre : 'Plato Desconocido'
+
+    // Si el plato no tiene receta configurada, lo dejamos pasar sin consumir ingredientes base
+    if (!receta || !receta.ingredientes || receta.ingredientes.length === 0) continue
+
+    for (const reqIng of receta.ingredientes) {
+      const ingredienteDoc = reqIng.ingrediente as any
+      if (!ingredienteDoc || !ingredienteDoc.nombre) continue
+
+      // Si el cliente/mesero escribió "sin papa", no contamos esa papa
+      if (debeExcluirIngrediente(item.observacion || '', ingredienteDoc.nombre)) continue
+
+      const idIngStr = ingredienteDoc._id.toString()
+      const cantidadTotalNecesaria = reqIng.cantidadNecesaria * item.cantidad
+
+      if (!requerimientos.has(idIngStr)) {
+        requerimientos.set(idIngStr, { requerido: 0, platos: new Set() })
+      }
+      
+      const reqActual = requerimientos.get(idIngStr)!
+      reqActual.requerido += cantidadTotalNecesaria
+      reqActual.platos.add(nombrePlato)
+    }
+  }
+
+  const errores: string[] = []
+
+  // Cruzar lo requerido vs lo disponible en la Base de Datos
+  for (const [idIngrediente, data] of requerimientos.entries()) {
+    const ingredienteBd = await Ingrediente.findById(idIngrediente)
+    if (!ingredienteBd) continue
+
+    if (ingredienteBd.stockActual < data.requerido) {
+      const faltante = data.requerido - ingredienteBd.stockActual
+      errores.push(
+        `Faltan ${faltante.toFixed(2)} ${ingredienteBd.unidadMedida} de "${ingredienteBd.nombre}" para poder preparar: ${Array.from(data.platos).join(', ')}.`
+      )
+    }
+  }
+
+  return {
+    success: errores.length === 0,
+    errores
+  }
+}
 // ─── Servicio principal ──────────────────────────────────────────────────────
 
 /**
