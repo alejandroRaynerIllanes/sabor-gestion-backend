@@ -135,10 +135,7 @@ export const obtenerPedidos = async (req: Request, res: Response): Promise<void>
     if (hoy === 'true') {
       const inicioHoy = new Date()
       inicioHoy.setHours(0, 0, 0, 0)
-      filtro.$or = [
-        { createdAt: { $gte: inicioHoy } },
-        { updatedAt: { $gte: inicioHoy } }
-      ]
+      filtro.$or = [{ createdAt: { $gte: inicioHoy } }, { updatedAt: { $gte: inicioHoy } }]
     } else if (fecha) {
       const inicio = new Date(`${fecha}T00:00:00`)
       const fin = new Date(`${fecha}T23:59:59.999`)
@@ -357,23 +354,32 @@ export const actualizarPedido = async (req: Request, res: Response): Promise<voi
     if (cajeroAsignado !== undefined) updates.cajeroAsignado = cajeroAsignado
     if (montoDescuento !== undefined) updates.montoDescuento = montoDescuento
     if (montoPropina !== undefined) updates.montoPropina = montoPropina
-    if (subtotalCierre !== undefined) updates.subtotalCierre = subtotalCierre
-
-<<<<<<< HEAD
-=======
     // Recalcular total si hay descuento o propina o subtotalCierre
-    const finalSub = updates.subtotalCierre !== undefined ? updates.subtotalCierre : (pedidoAnterior?.subtotalCierre || updates.total || pedidoAnterior?.total || 0)
-    const finalDesc = updates.montoDescuento !== undefined ? updates.montoDescuento : (pedidoAnterior?.montoDescuento || 0)
-    const finalProp = updates.montoPropina !== undefined ? updates.montoPropina : (pedidoAnterior?.montoPropina || 0)
-    if (updates.montoDescuento !== undefined || updates.montoPropina !== undefined || updates.subtotalCierre !== undefined) {
+    const finalSub =
+      updates.subtotalCierre !== undefined
+        ? updates.subtotalCierre
+        : pedidoAnterior?.subtotalCierre || updates.total || pedidoAnterior?.total || 0
+    const finalDesc =
+      updates.montoDescuento !== undefined
+        ? updates.montoDescuento
+        : pedidoAnterior?.montoDescuento || 0
+    const finalProp =
+      updates.montoPropina !== undefined ? updates.montoPropina : pedidoAnterior?.montoPropina || 0
+    if (
+      updates.montoDescuento !== undefined ||
+      updates.montoPropina !== undefined ||
+      updates.subtotalCierre !== undefined
+    ) {
       updates.total = Math.max(0, finalSub - finalDesc + finalProp)
-      if (!updates.subtotalCierre && (!pedidoAnterior?.subtotalCierre || pedidoAnterior.subtotalCierre === 0)) {
+      if (
+        !updates.subtotalCierre &&
+        (!pedidoAnterior?.subtotalCierre || pedidoAnterior.subtotalCierre === 0)
+      ) {
         updates.subtotalCierre = finalSub
       }
     }
 
     // Actualizamos los platos y el nuevo total del pedido existente
->>>>>>> 6dc7340 (error de pago contador)
     const pedidoActualizado = await Pedido.findByIdAndUpdate(
       id,
       { $set: updates },
@@ -660,7 +666,7 @@ export const checkoutPedido = async (req: CustomRequest, res: Response): Promise
     try {
       const io = getIO()
       io.emit('delivery:nuevo_pedido', pedidoRespuesta)
-      
+
       if (pedidoAsignado?.repartidorId) {
         io.emit('delivery:pedido_asignado', pedidoAsignado)
       }

@@ -61,7 +61,7 @@ export const initSocket = (httpServer: HTTPServer) => {
     socket.on('join_order_room', (orderId: string) => {
       socket.join(orderId)
       console.log(`📍 Cliente/Repartidor suscrito a la sala del pedido: ${orderId}`)
-      
+
       // Al conectarse, enviamos el historial de chat acumulado para ese pedido
       const history = activeChats.get(orderId) || []
       socket.emit('chat:historial', { pedidoId: orderId, mensajes: history })
@@ -90,7 +90,7 @@ export const initSocket = (httpServer: HTTPServer) => {
     // <-- LÓGICA CHAT SINCRONIZADO: Delivery <-> Cliente -->
     socket.on('chat:enviar_mensaje', (msg: any) => {
       console.log(`💬 CHAT [Pedido ${msg.pedidoId}] ${msg.sender}: ${msg.text}`)
-      
+
       // Guardamos el mensaje en la memoria del servidor
       const history = activeChats.get(msg.pedidoId) || []
       history.push(msg)

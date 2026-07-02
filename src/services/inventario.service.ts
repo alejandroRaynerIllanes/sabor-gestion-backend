@@ -38,7 +38,6 @@ async function existeAlertaHoy(ingredienteId: mongoose.Types.ObjectId): Promise<
   return alerta !== null
 }
 
-
 // ─── NUEVO: Escudo Validador Centralizado ────────────────────────────────────
 
 export async function validarDisponibilidadIngredientes(
@@ -48,7 +47,9 @@ export async function validarDisponibilidadIngredientes(
   const requerimientos = new Map<string, { requerido: number; platos: Set<string> }>()
 
   for (const item of items) {
-    const receta = await Receta.findOne({ plato: item.platoId }).populate('ingredientes.ingrediente')
+    const receta = await Receta.findOne({ plato: item.platoId }).populate(
+      'ingredientes.ingrediente'
+    )
     const plato = await Plato.findById(item.platoId)
     const nombrePlato = plato ? plato.nombre : 'Plato Desconocido'
 
@@ -68,7 +69,7 @@ export async function validarDisponibilidadIngredientes(
       if (!requerimientos.has(idIngStr)) {
         requerimientos.set(idIngStr, { requerido: 0, platos: new Set() })
       }
-      
+
       const reqActual = requerimientos.get(idIngStr)!
       reqActual.requerido += cantidadTotalNecesaria
       reqActual.platos.add(nombrePlato)

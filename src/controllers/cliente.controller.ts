@@ -227,4 +227,3 @@ export const loginGoogleCliente = async (req: Request, res: Response): Promise<v
     res.status(500).json({ mensaje: 'Error en la autenticación con Google', error: error.message })
   }
 }
-

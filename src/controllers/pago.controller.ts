@@ -69,9 +69,9 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
 
   const metodoPagoNormalizado = String(metodoPago || '').trim()
   const metodosValidos = ['Efectivo', 'Tarjeta', 'QR']
-  const metodoPagoValido = metodosValidos.find(
-    (m) => m.toLowerCase() === metodoPagoNormalizado.toLowerCase()
-  ) || 'Efectivo'
+  const metodoPagoValido =
+    metodosValidos.find((m) => m.toLowerCase() === metodoPagoNormalizado.toLowerCase()) ||
+    'Efectivo'
 
   // --- Cálculos (sin BD, seguros fuera de la transacción) ---
   const ped: any = pedido
