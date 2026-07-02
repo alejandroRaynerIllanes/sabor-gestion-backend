@@ -39,7 +39,7 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
   const {
     metodoPago,
     porcentajeDescuento = 0,
-    porcentajePropina = 0,
+    porcentajePropina = 0, // Estos son los datos que vienen del modal de pago
     montoDescuento: bodyMontoDescuento,
     montoPropina: bodyMontoPropina,
     subtotalCierre: bodySubtotalCierre,
@@ -77,6 +77,7 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
   const ped: any = pedido
   const subtotal = Number(bodySubtotalCierre || ped.subtotalCierre || pedido.total || 0)
 
+  // Lógica mejorada: Prioriza el monto explícito, luego el porcentaje, y finalmente el valor ya guardado.
   const montoDescuento =
     bodyMontoDescuento !== undefined && bodyMontoDescuento !== null
       ? Number(bodyMontoDescuento)
@@ -84,6 +85,7 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
         ? subtotal * (porcentajeDescuento / 100)
         : Number(ped.montoDescuento || 0)
 
+  // Misma lógica para la propina.
   const montoPropina =
     bodyMontoPropina !== undefined && bodyMontoPropina !== null
       ? Number(bodyMontoPropina)
@@ -92,7 +94,7 @@ export const procesarPagoFinal = async (req: CustomRequest, res: Response): Prom
         : Number(ped.montoPropina || 0)
 
   const totalFinal = Math.max(0, subtotal - montoDescuento + montoPropina)
-  const cajeroId = (req as any).usuario?.id || bodyCajeroAsignado || ped.cajeroAsignado || null
+  const cajeroId = req.usuario?.id || bodyCajeroAsignado || ped.cajeroAsignado || null
 
   // --- TRANSACCIÓN MONGODB: todas las escrituras son atómicas ---
   const session = await mongoose.startSession()
